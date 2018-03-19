@@ -1,5 +1,4 @@
 require 'test_helper'
-require 'pry'
 
 class RemoteIntegraPayTest < Test::Unit::TestCase
   def setup
