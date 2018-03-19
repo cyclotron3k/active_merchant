@@ -143,37 +143,37 @@ module ActiveMerchant #:nodoc:
       # define the following methods:
       def purchase(money, payment, options={})
         data_sources = {
-          money: money,
-          payment: payment,
-          options: @options.merge(options),
-          amount: amount(money),
-          currency: (options[:currency] || currency(money)),
-          expiry_date: sprintf("%04i%02i", payment.year, payment.month),
-          address: (options[:billing_address] || options[:address]),
+          :money       => money,
+          :payment     => payment,
+          :options     => @options.merge(options),
+          :amount      => amount(money),
+          :currency    => (options[:currency] || currency(money)),
+          :expiry_date => sprintf("%04i%02i", payment.year, payment.month),
+          :address     => (options[:billing_address] || options[:address]),
         }
         base(MAPPING[:purchase], data_sources)
       end
 
       def authorize(money, payment, options={})
         data_sources = {
-          money: money,
-          payment: payment,
-          options: @options.merge(options),
-          amount: amount(money),
-          currency: (options[:currency] || currency(money)),
-          expiry_date: sprintf("%04i%02i", payment.year, payment.month),
-          address: (options[:billing_address] || options[:address]),
+          :money       => money,
+          :payment     => payment,
+          :options     => @options.merge(options),
+          :amount      => amount(money),
+          :currency    => (options[:currency] || currency(money)),
+          :expiry_date => sprintf("%04i%02i", payment.year, payment.month),
+          :address     => (options[:billing_address] || options[:address]),
         }
         base(MAPPING[:authorize], data_sources)
       end
 
       def capture(money, authorization, options={})
-        data_sources = {money: money, authorization: authorization, options: @options.merge(options), amount: amount(money), currency: (options[:currency] || currency(money))}
+        data_sources  = {:money => money, :authorization => authorization, :options => @options.merge(options), :amount => amount(money), :currency => (options[:currency] || currency(money))}
         base(MAPPING[:capture], data_sources)
       end
 
       def refund(money, authorization, options={})
-        data_sources = {money: money, authorization: authorization, options: @options.merge(options), amount: amount(money), currency: (options[:currency] || currency(money))}
+        data_sources = {:money => money, :authorization => authorization, :options => @options.merge(options), :amount => amount(money), :currency => (options[:currency] || currency(money))}
         base(MAPPING[:refund], data_sources)
       end
 
@@ -283,11 +283,11 @@ module ActiveMerchant #:nodoc:
           success,
           message_from(parsed),
           parsed,
-          authorization: (success ? parameters['transactionID'] : nil),
-          avs_result: AVSResult.new(code: response["some_avs_response_key"]),
-          cvv_result: CVVResult.new(response["some_cvv_response_key"]),
-          test: test?,
-          error_code: error_code_from(response, parsed)
+          :authorization => (success ? parameters['transactionID'] : nil),
+          :avs_result    => AVSResult.new(code: response["some_avs_response_key"]),
+          :cvv_result    => CVVResult.new(response["some_cvv_response_key"]),
+          :test          => test?,
+          :error_code    => error_code_from(response, parsed)
         )
       end
 
