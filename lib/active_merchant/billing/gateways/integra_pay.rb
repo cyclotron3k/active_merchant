@@ -14,8 +14,6 @@ module ActiveMerchant #:nodoc:
       self.homepage_url = 'https://www.integrapay.com.au/'
       self.display_name = 'IntegraPay'
 
-      STANDARD_ERROR_CODE_MAPPING = {}
-
       def initialize(options={})
         requires!(options, :username, :password)
         super
@@ -44,19 +42,19 @@ module ActiveMerchant #:nodoc:
             'auditUserIP'              => {source: [:options, :ip]                            },
             'auditUsername'            => {source: [:options, :audit_username]                },
 
-            'payerEmail'               => {source: [:options, :payer_email]                   },
-            'payerFirstName'           => {source: [:options, :payer_first_name]              },
-            'payerLastName'            => {source: [:options, :payer_last_name]               },
-            'payerMobile'              => {source: [:options, :payer_mobile]                  },
-            'payerPhone'               => {source: [:options, :payer_phone]                   },
-            'payerUniqueID'            => {source: [:options, :payer_unique_id]               },
+            'payerEmail'               => {source: [:options, :email]                         },
+            'payerFirstName'           => {source: [:options, :first_name]                    },
+            'payerLastName'            => {source: [:options, :name]                          },
+            'payerMobile'              => {source: [:options, :mobile_number]                 },
+            'payerPhone'               => {source: [:options, :phone_number]                  },
+            'payerUniqueID'            => {source: [:options, :customer_id]                   },
 
-            'payerAddressCountry'      => {source: [:options, :payer_address_country]         },
-            'payerAddressLine1'        => {source: [:options, :payer_address_line_1]          },
-            'payerAddressLine2'        => {source: [:options, :payer_address_line_2]          },
-            'payerAddressPostCode'     => {source: [:options, :payer_address_postcode]        },
-            'payerAddressState'        => {source: [:options, :payer_address_state]           },
-            'payerAddressSuburb'       => {source: [:options, :payer_address_suburb]          },
+            'payerAddressCountry'      => {source: [:address, :country]                       },
+            'payerAddressLine1'        => {source: [:address, :address1]                      },
+            'payerAddressLine2'        => {source: [:address, :address2]                      },
+            'payerAddressPostCode'     => {source: [:address, :postcode]                      },
+            'payerAddressState'        => {source: [:address, :state]                         },
+            'payerAddressSuburb'       => {source: [:address, :city]                          },
           }
         },
         authorize: {
@@ -81,19 +79,19 @@ module ActiveMerchant #:nodoc:
             'auditUserIP'              => {source: [:options, :ip]                            },
             'auditUsername'            => {source: [:options, :audit_username]                },
 
-            'payerEmail'               => {source: [:options, :payer_email]                   },
-            'payerFirstName'           => {source: [:options, :payer_first_name]              },
-            'payerLastName'            => {source: [:options, :payer_last_name]               },
-            'payerMobile'              => {source: [:options, :payer_mobile]                  },
-            'payerPhone'               => {source: [:options, :payer_phone]                   },
-            'payerUniqueID'            => {source: [:options, :payer_unique_id]               },
+            'payerEmail'               => {source: [:options, :email]                         },
+            'payerFirstName'           => {source: [:options, :first_name]                    },
+            'payerLastName'            => {source: [:options, :name]                          },
+            'payerMobile'              => {source: [:options, :mobile_number]                 },
+            'payerPhone'               => {source: [:options, :phone_number]                  },
+            'payerUniqueID'            => {source: [:options, :customer_id]                   },
 
-            'payerAddressCountry'      => {source: [:options, :payer_address_country]         },
-            'payerAddressLine1'        => {source: [:options, :payer_address_line_1]          },
-            'payerAddressLine2'        => {source: [:options, :payer_address_line_2]          },
-            'payerAddressPostCode'     => {source: [:options, :payer_address_postcode]        },
-            'payerAddressState'        => {source: [:options, :payer_address_state]           },
-            'payerAddressSuburb'       => {source: [:options, :payer_address_suburb]          },
+            'payerAddressCountry'      => {source: [:address, :country]                       },
+            'payerAddressLine1'        => {source: [:address, :address1]                      },
+            'payerAddressLine2'        => {source: [:address, :address2]                      },
+            'payerAddressPostCode'     => {source: [:address, :postcode]                      },
+            'payerAddressState'        => {source: [:address, :state]                         },
+            'payerAddressSuburb'       => {source: [:address, :city]                          },
           }
         },
         capture: {
@@ -150,7 +148,8 @@ module ActiveMerchant #:nodoc:
           options: @options.merge(options),
           amount: amount(money),
           currency: (options[:currency] || currency(money)),
-          expiry_date: sprintf("%04i%02i", payment.year, payment.month)
+          expiry_date: sprintf("%04i%02i", payment.year, payment.month),
+          address: (options[:billing_address] || options[:address]),
         }
         base(MAPPING[:purchase], data_sources)
       end
@@ -162,7 +161,8 @@ module ActiveMerchant #:nodoc:
           options: @options.merge(options),
           amount: amount(money),
           currency: (options[:currency] || currency(money)),
-          expiry_date: sprintf("%04i%02i", payment.year, payment.month)
+          expiry_date: sprintf("%04i%02i", payment.year, payment.month),
+          address: (options[:billing_address] || options[:address]),
         }
         base(MAPPING[:authorize], data_sources)
       end
@@ -208,17 +208,6 @@ module ActiveMerchant #:nodoc:
 
       end
 
-      # def void(authorization, options={})
-      #   raise "IntegraPayGateway#void not implemented yet"
-      # end
-
-      # def verify(payment, options={})
-      #   MultiResponse.run(:use_first_response) do |r|
-      #     r.process { authorize(100, payment, options) }
-      #     r.process(:ignore_result) { void(r.authorization, options) }
-      #   end
-      # end
-
       # def store(payment, options={})
       # end
 
@@ -247,7 +236,6 @@ module ActiveMerchant #:nodoc:
           </env:Envelope>
         XML
       end
-
 
       def parse_xml(text)
         doc = Nokogiri::XML(text).remove_namespaces!
@@ -320,10 +308,6 @@ module ActiveMerchant #:nodoc:
           safe_traverse_hash(parsed, ['response', 'resultDescription', :text])
         ].compact.join(' - ')
       end
-
-      # def authorization_from(parsed)
-      #   safe_traverse_hash parsed, ['response', 'resultBankReceiptID', :text]
-      # end
 
       def safe_traverse_hash(obj, keys, default=nil)
         keys.reduce(obj) do |memo, key|

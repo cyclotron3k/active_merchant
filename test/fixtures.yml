@@ -384,6 +384,10 @@ instapay:
   login: TEST0
   password:
 
+integra_pay:
+  username: username
+  password: password
+
 # Working credentials, no need to replace
 ipp:
   username: nmi.api

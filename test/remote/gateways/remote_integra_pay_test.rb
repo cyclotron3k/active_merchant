@@ -10,7 +10,7 @@ class RemoteIntegraPayTest < Test::Unit::TestCase
     @declined_card = credit_card('4000300011112220')
     @options = {
       billing_address: address,
-      description: 'Store Purchase'
+      description: 'Payment Description'
     }
   end
 
@@ -157,13 +157,6 @@ class RemoteIntegraPayTest < Test::Unit::TestCase
     assert_nil capture.authorization
   end
 
-  # def test_verify
-  #   verify = @gateway.verify(@credit_card, @options)
-  #   assert_success verify
-  #   assert_equal 'S', verify.message
-  #   puts verify.authorization
-  # end
-
   def test_partial_capture_partial_refund
     auth_id = "Test#%05i" % Random.rand(100000)
     auth = @gateway.authorize(@amount, @credit_card, @options.merge(order_id: auth_id))
@@ -211,7 +204,7 @@ class RemoteIntegraPayTest < Test::Unit::TestCase
     ref_id = "Test#%05i" % Random.rand(100000)
     assert refund = @gateway.refund(@amount + 1, purchase.authorization, {order_id: ref_id})
     assert_failure refund
-    assert_match /processAmountInCents can not be greater than the original transaction amount \(1\.00\)/, refund.message
+    assert_match(/processAmountInCents can not be greater than the original transaction amount \(1\.00\)/, refund.message)
     assert_nil refund.authorization
   end
 
@@ -229,75 +222,6 @@ class RemoteIntegraPayTest < Test::Unit::TestCase
     assert_equal 'No transaction was found with the information you provided', refund.message
     assert_nil refund.authorization
   end
-
-
-
-  # def test_failed_authorize
-  #   response = @gateway.authorize(@amount, @declined_card, @options)
-  #   assert_failure response
-  #   assert_equal 'processing_error', response.error_code
-  #   assert_equal 'REPLACE WITH FAILED AUTHORIZE MESSAGE', response.message
-  # end
-
-  # def test_failed_capture
-  #   response = @gateway.capture(@amount, '')
-  #   assert_failure response
-  #   assert_equal 'processing_error', response.error_code
-  #   assert_equal 'REPLACE WITH FAILED CAPTURE MESSAGE', response.message
-  # end
-
-  # def test_successful_refund
-  #   purchase = @gateway.purchase(@amount, @credit_card, @options)
-  #   assert_success purchase
-
-  #   assert refund = @gateway.refund(@amount, purchase.authorization)
-  #   assert_success refund
-  #   assert_equal 'REPLACE WITH SUCCESSFUL REFUND MESSAGE', refund.message
-  # end
-
-  # def test_partial_refund
-  #   purchase = @gateway.purchase(@amount, @credit_card, @options)
-  #   assert_success purchase
-
-  #   assert refund = @gateway.refund(@amount-1, purchase.authorization)
-  #   assert_success refund
-  # end
-
-  # def test_failed_refund
-  #   response = @gateway.refund(@amount, '')
-  #   assert_failure response
-  #   assert_equal 'processing_error', response.error_code
-  #   assert_equal 'REPLACE WITH FAILED REFUND MESSAGE', response.message
-  # end
-
-  # def test_successful_void
-  #   auth = @gateway.authorize(@amount, @credit_card, @options)
-  #   assert_success auth
-
-  #   assert void = @gateway.void(auth.authorization)
-  #   assert_success void
-  #   assert_equal 'REPLACE WITH SUCCESSFUL VOID MESSAGE', void.message
-  # end
-
-  # def test_failed_void
-  #   response = @gateway.void('')
-  #   assert_failure response
-  #   assert_equal 'processing_error', response.error_code
-  #   assert_equal 'REPLACE WITH FAILED VOID MESSAGE', response.message
-  # end
-
-  # def test_successful_verify
-  #   response = @gateway.verify(@credit_card, @options)
-  #   assert_success response
-  #   assert_match %r{REPLACE WITH SUCCESS MESSAGE}, response.message
-  # end
-
-  # def test_failed_verify
-  #   response = @gateway.verify(@declined_card, @options)
-  #   assert_failure response
-  #   assert_equal 'processing_error', response.error_code
-  #   assert_match %r{REPLACE WITH FAILED PURCHASE MESSAGE}, response.message
-  # end
 
   def test_invalid_login
     gateway = IntegraPayGateway.new(username: 'username', password: 'password')
