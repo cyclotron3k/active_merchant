@@ -36,6 +36,10 @@ axcessms:
 balanced:
   login: 'e1c5ad38d1c711e1b36c026ba7e239a9'
 
+bambora_apac:
+  username: nmi.api
+  password: qwerty123
+
 # Bank Frick doesn't provide public testing data
 bank_frick:
   sender: sender-uuid
@@ -67,6 +71,7 @@ beanstream:
   password: password
   secure_profile_api_key: API Access Passcode
   recurring_api_key: API Access Passcode
+  api_key: API KEY
 
 beanstream_interac:
   login: merchant id
@@ -219,6 +224,11 @@ credorax:
   merchant_id: 'merchant_id'
   cipher_key: 'cipher_key'
 
+ct_payment:
+  api_key: SOMECREDENTIAL
+  company_number: '12345'
+  merchant_number: '12345678'
+
 # Culqi does not provide public testing data
 culqi:
   merchant_id: MERCHANT
@@ -232,6 +242,12 @@ culqi:
 cyber_source:
   login: X
   password: Y
+
+# Working credentials, no need to replace
+d_local:
+  login: aeaf9bbfa1
+  trans_key: 9de3769b7e
+  secret_key: ae132899f56162a669b38dab5927862f3
 
 data_cash:
   login: X
@@ -330,6 +346,12 @@ first_pay:
 firstdata_e4:
   login: SD8821-67
   password: T6bxSywbcccbJ19eDXNIGaCDOBg1W7T8
+
+firstdata_e4_v27:
+  login: ALOGIN
+  password: APASSWORD
+  key_id: ANINTEGER
+  hmac_key: AMAGICALKEY
 
 flo2cash:
   username: SOMECREDENTIAL
@@ -512,7 +534,7 @@ monei:
 
 # Working credentials, no need to replace
 moneris:
-  login: store1
+  login: store3
   password: yesguy
 
 moneris_us:
@@ -1175,6 +1197,7 @@ trexle:
 trust_commerce:
   login: 'TestMerchant'
   password: 'password'
+  aggregator_id: 'abc123'
 
 # Working credentials, no need to replace
 usa_epay:

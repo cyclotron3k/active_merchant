@@ -1,4 +1,5 @@
 # coding: utf-8
+
 require 'nokogiri'
 
 module ActiveMerchant #:nodoc:
@@ -431,7 +432,7 @@ module ActiveMerchant #:nodoc:
       def validate_signature(data)
         if sha256_authentication?
           sig = Base64.strict_encode64(mac256(get_key(data[:ds_order].to_s), xml_signed_fields(data)))
-          sig.upcase == data[:ds_signature].to_s.upcase
+          sig.casecmp(data[:ds_signature].to_s).zero?
         else
           str = data[:ds_amount] +
             data[:ds_order].to_s +
@@ -522,7 +523,7 @@ module ActiveMerchant #:nodoc:
           xml_signed_fields += data[:ds_cardnumber]
         end
 
-        xml_signed_fields += data[:ds_transactiontype] + data[:ds_securepayment]
+        xml_signed_fields + data[:ds_transactiontype] + data[:ds_securepayment]
       end
 
       def get_key(order_id)

@@ -31,6 +31,25 @@ class OrbitalGatewayTest < Test::Unit::TestCase
     }
 
     @options = { :order_id => '1'}
+    @options_stored_credentials = {
+      mit_msg_type: 'MRSB',
+      mit_stored_credential_ind: 'Y',
+      mit_submitted_transaction_id: '123456abcdef'
+    }
+    @normalized_mit_stored_credential = {
+      stored_credential: {
+        initial_transaction: false,
+        initiator: 'merchant',
+        reason_type: 'unscheduled',
+        network_transaction_id: 'abcdefg12345678'
+      }
+    }
+    @normalized_initial_stored_credential = {
+      stored_credential: {
+        initial_transaction: true,
+        initiator: 'customer'
+      }
+    }
   end
 
   def test_successful_purchase
@@ -153,6 +172,21 @@ class OrbitalGatewayTest < Test::Unit::TestCase
     assert_success response
   end
 
+  def test_numeric_merchant_id_for_caputre
+    gateway = ActiveMerchant::Billing::OrbitalGateway.new(
+      :login => 'login',
+      :password => 'password',
+      :merchant_id => 700000123456
+    )
+
+    response = stub_comms(gateway) do
+      gateway.capture(101, '4A5398CF9B87744GG84A1D30F2F2321C66249416;1', @options)
+    end.check_request do |endpoint, data, headers|
+      assert_match(/<MerchantID>700000123456<\/MerchantID>/, data)
+    end.respond_with(successful_purchase_response)
+    assert_success response
+  end
+
   def test_expiry_date
     year = (DateTime.now + 1.year).strftime('%y')
     assert_equal "09#{year}", @gateway.send(:expiry_date, credit_card)
@@ -181,8 +215,8 @@ class OrbitalGatewayTest < Test::Unit::TestCase
 
   def test_truncates_name
     card = credit_card('4242424242424242',
-                       :first_name => 'John',
-                       :last_name => 'Jacob Jingleheimer Smith-Jones')
+      :first_name => 'John',
+      :last_name => 'Jacob Jingleheimer Smith-Jones')
 
     response = stub_comms do
       @gateway.purchase(50, card, :order_id => 1, :billing_address => address)
@@ -217,7 +251,7 @@ class OrbitalGatewayTest < Test::Unit::TestCase
   end
 
   def test_truncates_zip
-   long_zip = '1234567890123'
+    long_zip = '1234567890123'
 
     response = stub_comms do
       @gateway.purchase(50, credit_card, :order_id => 1, :billing_address => address(:zip => long_zip))
@@ -237,12 +271,12 @@ class OrbitalGatewayTest < Test::Unit::TestCase
       :dest_address2 => 'L%u%xury S|u^i\\t/e',
       :dest_city =>     '/Winn/i%p|e^g\\',
       :dest_zip =>      'A1A 2B2',
-      :dest_state =>    '^MB',
+      :dest_state =>    '^MB'
     )
 
     response = stub_comms do
       @gateway.purchase(50, credit_card, :order_id => 1,
-        :billing_address => address_with_invalid_chars)
+                                         :billing_address => address_with_invalid_chars)
     end.check_request do |endpoint, data, headers|
       assert_match(/456 Main Street</, data)
       assert_match(/Apt. Number One</, data)
@@ -270,8 +304,8 @@ class OrbitalGatewayTest < Test::Unit::TestCase
 
   def test_truncates_by_byte_length
     card = credit_card('4242424242424242',
-                       :first_name => 'John',
-                       :last_name => 'Jacob Jingleheimer Smith-Jones')
+      :first_name => 'John',
+      :last_name => 'Jacob Jingleheimer Smith-Jones')
 
     long_address = address(
       :address1 =>      '456 Stréêt Name is Really Long',
@@ -289,7 +323,7 @@ class OrbitalGatewayTest < Test::Unit::TestCase
 
     response = stub_comms do
       @gateway.purchase(50, card, :order_id => 1,
-        :billing_address => long_address)
+                                  :billing_address => long_address)
     end.check_request do |endpoint, data, headers|
       assert_match(/456 Stréêt Name is Really Lo</, data)
       assert_match(/Apårtmeñt 123456789012345678</, data)
@@ -350,7 +384,7 @@ class OrbitalGatewayTest < Test::Unit::TestCase
 
     response = stub_comms do
       @gateway.purchase(50, credit_card, :order_id => 1,
-        :billing_address => billing_address)
+                                         :billing_address => billing_address)
     end.check_request do |endpoint, data, headers|
       assert_match(/<AVSDestzip>90001/, data)
       assert_match(/<AVSDestaddress1>456 Main St./, data)
@@ -366,11 +400,59 @@ class OrbitalGatewayTest < Test::Unit::TestCase
     # non-AVS country
     response = stub_comms do
       @gateway.purchase(50, credit_card, :order_id => 1,
-        :billing_address => billing_address.merge(:dest_country => 'BR'))
+                                         :billing_address => billing_address.merge(:dest_country => 'BR'))
     end.check_request do |endpoint, data, headers|
       assert_match(/<AVSDestcountryCode></, data)
     end.respond_with(successful_purchase_response)
     assert_success response
+  end
+
+  def test_successful_purchase_with_negative_stored_credentials_indicator
+    stub_comms do
+      @gateway.purchase(50, credit_card, @options.merge(mit_stored_credential_ind: 'N'))
+    end.check_request do |endpoint, data, headers|
+      assert_no_match(/<MITMsgType>/, data)
+      assert_no_match(/<MITStoredCredentialInd>/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_successful_purchase_with_stored_credentials
+    stub_comms do
+      @gateway.purchase(50, credit_card, @options.merge(@options_stored_credentials))
+    end.check_request do |endpoint, data, headers|
+      assert_match %{<MITMsgType>#{@options_stored_credentials[:mit_msg_type]}</MITMsgType>}, data
+      assert_match %{<MITStoredCredentialInd>#{@options_stored_credentials[:mit_stored_credential_ind]}</MITStoredCredentialInd>}, data
+      assert_match %{<MITSubmittedTransactionID>#{@options_stored_credentials[:mit_submitted_transaction_id]}</MITSubmittedTransactionID>}, data
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_successful_purchase_with_normalized_stored_credentials
+    stub_comms do
+      @gateway.purchase(50, credit_card, @options.merge(@normalized_mit_stored_credential))
+    end.check_request do |endpoint, data, headers|
+      assert_match %{<MITMsgType>MUSE</MITMsgType>}, data
+      assert_match %{<MITStoredCredentialInd>Y</MITStoredCredentialInd>}, data
+      assert_match %{<MITSubmittedTransactionID>abcdefg12345678</MITSubmittedTransactionID>}, data
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_successful_initial_purchase_with_normalized_stored_credentials
+    stub_comms do
+      @gateway.purchase(50, credit_card, @options.merge(@normalized_initial_stored_credential))
+    end.check_request do |endpoint, data, headers|
+      assert_match %{<MITMsgType>CSTO</MITMsgType>}, data
+      assert_match %{<MITStoredCredentialInd>Y</MITStoredCredentialInd>}, data
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_successful_purchase_with_overridden_normalized_stored_credentials
+    stub_comms do
+      @gateway.purchase(50, credit_card, @options.merge(@normalized_mit_stored_credential).merge(@options_stored_credentials))
+    end.check_request do |endpoint, data, headers|
+      assert_match %{<MITMsgType>MRSB</MITMsgType>}, data
+      assert_match %{<MITStoredCredentialInd>Y</MITStoredCredentialInd>}, data
+      assert_match %{<MITSubmittedTransactionID>123456abcdef</MITSubmittedTransactionID>}, data
+    end.respond_with(successful_purchase_response)
   end
 
   def test_default_managed_billing
@@ -393,10 +475,12 @@ class OrbitalGatewayTest < Test::Unit::TestCase
     response = stub_comms do
       assert_deprecation_warning(Gateway::RECURRING_DEPRECATION_MESSAGE) do
         assert_deprecation_warning do
-          @gateway.add_customer_profile(credit_card, :managed_billing => {:start_date => '10-10-2014',
-                  :end_date => '10-10-2015',
-                  :max_dollar_value => 1500,
-                  :max_transactions => 12})
+          @gateway.add_customer_profile(credit_card,
+            :managed_billing => {
+              :start_date => '10-10-2014',
+              :end_date => '10-10-2015',
+              :max_dollar_value => 1500,
+              :max_transactions => 12})
         end
       end
     end.check_request do |endpoint, data, headers|
@@ -550,7 +634,7 @@ class OrbitalGatewayTest < Test::Unit::TestCase
     response = stub_comms do
       @gateway.purchase(50, credit_card, :order_id => 1, :billing_address => address)
     end.check_request do |endpoint, data, headers|
-      schema_file = File.read("#{File.dirname(__FILE__)}/../../schema/orbital/Request_PTI54.xsd")
+      schema_file = File.read("#{File.dirname(__FILE__)}/../../schema/orbital/Request_PTI77.xsd")
       doc = Nokogiri::XML(data)
       xsd = Nokogiri::XML::Schema(schema_file)
       assert xsd.valid?(doc), 'Request does not adhere to DTD'
@@ -562,7 +646,7 @@ class OrbitalGatewayTest < Test::Unit::TestCase
     response = stub_comms do
       @gateway.purchase(50, credit_card, :order_id => 1, :billing_address => address(:country => 'DE'))
     end.check_request do |endpoint, data, headers|
-      schema_file = File.read("#{File.dirname(__FILE__)}/../../schema/orbital/Request_PTI54.xsd")
+      schema_file = File.read("#{File.dirname(__FILE__)}/../../schema/orbital/Request_PTI77.xsd")
       doc = Nokogiri::XML(data)
       xsd = Nokogiri::XML::Schema(schema_file)
       assert xsd.valid?(doc), 'Request does not adhere to DTD'
@@ -689,7 +773,7 @@ class OrbitalGatewayTest < Test::Unit::TestCase
 
     assert_deprecation_warning do
       response = @gateway.add_customer_profile(credit_card,
-          :billing_address => address)
+        :billing_address => address)
     end
 
     assert_instance_of Response, response
@@ -753,15 +837,15 @@ class OrbitalGatewayTest < Test::Unit::TestCase
   end
 
   def failed_purchase_response
-    %q{<?xml version="1.0" encoding="UTF-8"?><Response><NewOrderResp><IndustryType></IndustryType><MessageType>AC</MessageType><MerchantID>700000000000</MerchantID><TerminalID>001</TerminalID><CardBrand>VI</CardBrand><AccountNum>4000300011112220</AccountNum><OrderID>1</OrderID><TxRefNum>4A5398CF9B87744GG84A1D30F2F2321C66249416</TxRefNum><TxRefIdx>0</TxRefIdx><ProcStatus>0</ProcStatus><ApprovalStatus>0</ApprovalStatus><RespCode>05</RespCode><AVSRespCode>G </AVSRespCode><CVV2RespCode>N</CVV2RespCode><AuthCode></AuthCode><RecurringAdviceCd></RecurringAdviceCd><CAVVRespCode></CAVVRespCode><StatusMsg>Do Not Honor</StatusMsg><RespMsg>AUTH DECLINED                   12001</RespMsg><HostRespCode>05</HostRespCode><HostAVSRespCode>N</HostAVSRespCode><HostCVV2RespCode>N</HostCVV2RespCode><CustomerRefNum></CustomerRefNum><CustomerName></CustomerName><ProfileProcStatus></ProfileProcStatus><CustomerProfileMessage></CustomerProfileMessage><RespTime>150214</RespTime></NewOrderResp></Response>}
+    '<?xml version="1.0" encoding="UTF-8"?><Response><NewOrderResp><IndustryType></IndustryType><MessageType>AC</MessageType><MerchantID>700000000000</MerchantID><TerminalID>001</TerminalID><CardBrand>VI</CardBrand><AccountNum>4000300011112220</AccountNum><OrderID>1</OrderID><TxRefNum>4A5398CF9B87744GG84A1D30F2F2321C66249416</TxRefNum><TxRefIdx>0</TxRefIdx><ProcStatus>0</ProcStatus><ApprovalStatus>0</ApprovalStatus><RespCode>05</RespCode><AVSRespCode>G </AVSRespCode><CVV2RespCode>N</CVV2RespCode><AuthCode></AuthCode><RecurringAdviceCd></RecurringAdviceCd><CAVVRespCode></CAVVRespCode><StatusMsg>Do Not Honor</StatusMsg><RespMsg>AUTH DECLINED                   12001</RespMsg><HostRespCode>05</HostRespCode><HostAVSRespCode>N</HostAVSRespCode><HostCVV2RespCode>N</HostCVV2RespCode><CustomerRefNum></CustomerRefNum><CustomerName></CustomerName><ProfileProcStatus></ProfileProcStatus><CustomerProfileMessage></CustomerProfileMessage><RespTime>150214</RespTime></NewOrderResp></Response>'
   end
 
   def successful_profile_response
-    %q{<?xml version="1.0" encoding="UTF-8"?><Response><ProfileResp><CustomerBin>000001</CustomerBin><CustomerMerchantID>700000000000</CustomerMerchantID><CustomerName>Longbob Longsen</CustomerName><CustomerRefNum>ABC</CustomerRefNum><CustomerProfileAction>CREATE</CustomerProfileAction><ProfileProcStatus>0</ProfileProcStatus><CustomerProfileMessage>Profile Request Processed</CustomerProfileMessage><CustomerAccountType>CC</CustomerAccountType><Status>A</Status><CCAccountNum>4111111111111111</CCAccountNum><RespTime/></ProfileResp></Response>}
+    '<?xml version="1.0" encoding="UTF-8"?><Response><ProfileResp><CustomerBin>000001</CustomerBin><CustomerMerchantID>700000000000</CustomerMerchantID><CustomerName>Longbob Longsen</CustomerName><CustomerRefNum>ABC</CustomerRefNum><CustomerProfileAction>CREATE</CustomerProfileAction><ProfileProcStatus>0</ProfileProcStatus><CustomerProfileMessage>Profile Request Processed</CustomerProfileMessage><CustomerAccountType>CC</CustomerAccountType><Status>A</Status><CCAccountNum>4111111111111111</CCAccountNum><RespTime/></ProfileResp></Response>'
   end
 
   def successful_void_response
-    %q{<?xml version="1.0" encoding="UTF-8"?><Response><ReversalResp><MerchantID>700000208761</MerchantID><TerminalID>001</TerminalID><OrderID>2</OrderID><TxRefNum>50FB1C41FEC9D016FF0BEBAD0884B174AD0853B0</TxRefNum><TxRefIdx>1</TxRefIdx><OutstandingAmt>0</OutstandingAmt><ProcStatus>0</ProcStatus><StatusMsg></StatusMsg><RespTime>01192013172049</RespTime></ReversalResp></Response>}
+    '<?xml version="1.0" encoding="UTF-8"?><Response><ReversalResp><MerchantID>700000208761</MerchantID><TerminalID>001</TerminalID><OrderID>2</OrderID><TxRefNum>50FB1C41FEC9D016FF0BEBAD0884B174AD0853B0</TxRefNum><TxRefIdx>1</TxRefIdx><OutstandingAmt>0</OutstandingAmt><ProcStatus>0</ProcStatus><StatusMsg></StatusMsg><RespTime>01192013172049</RespTime></ReversalResp></Response>'
   end
 
   def pre_scrubbed

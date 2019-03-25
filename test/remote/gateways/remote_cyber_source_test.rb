@@ -12,19 +12,19 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     @three_ds_unenrolled_card = credit_card('4000000000000051',
       verification_value: '321',
       month: '12',
-      year: "#{Time.now.year + 2}",
+      year: (Time.now.year + 2).to_s,
       brand: :visa
     )
     @three_ds_enrolled_card = credit_card('4000000000000002',
       verification_value: '321',
       month: '12',
-      year: "#{Time.now.year + 2}",
+      year: (Time.now.year + 2).to_s,
       brand: :visa
     )
     @three_ds_invalid_card = credit_card('4000000000000010',
       verification_value: '321',
       month: '12',
-      year: "#{Time.now.year + 2}",
+      year: (Time.now.year + 2).to_s,
       brand: :visa
     )
 
@@ -213,13 +213,13 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
   end
 
   def test_failed_capture_bad_auth_info
-    assert auth = @gateway.authorize(@amount, @credit_card, @options)
+    assert @gateway.authorize(@amount, @credit_card, @options)
     assert capture = @gateway.capture(@amount, 'a;b;c', @options)
     assert_failure capture
   end
 
   def test_invalid_login
-    gateway = CyberSourceGateway.new( :login => 'asdf', :password => 'qwer' )
+    gateway = CyberSourceGateway.new(:login => 'asdf', :password => 'qwer')
     assert response = gateway.purchase(@amount, @credit_card, @options)
     assert_failure response
     assert_equal "wsse:FailedCheck: \nSecurity Data : UsernameToken authentication failed.\n", response.message
@@ -299,7 +299,6 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert_success response
     assert response.test?
   end
-
 
   def test_successful_subscription_credit
     assert response = @gateway.store(@credit_card, @subscription_options)

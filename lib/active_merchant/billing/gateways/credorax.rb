@@ -129,6 +129,7 @@ module ActiveMerchant #:nodoc:
         add_email(post, options)
         add_3d_secure(post, options)
         add_echo(post, options)
+        add_submerchant_id(post, options)
         add_transaction_type(post, options)
 
         commit(:purchase, post)
@@ -142,6 +143,7 @@ module ActiveMerchant #:nodoc:
         add_email(post, options)
         add_3d_secure(post, options)
         add_echo(post, options)
+        add_submerchant_id(post, options)
         add_transaction_type(post, options)
 
         commit(:authorize, post)
@@ -153,6 +155,7 @@ module ActiveMerchant #:nodoc:
         add_reference(post, authorization)
         add_customer_data(post, options)
         add_echo(post, options)
+        add_submerchant_id(post, options)
 
         commit(:capture, post)
       end
@@ -162,6 +165,7 @@ module ActiveMerchant #:nodoc:
         add_customer_data(post, options)
         reference_action = add_reference(post, authorization)
         add_echo(post, options)
+        add_submerchant_id(post, options)
         post[:a1] = generate_unique_id
 
         commit(:void, post, reference_action)
@@ -173,6 +177,7 @@ module ActiveMerchant #:nodoc:
         add_reference(post, authorization)
         add_customer_data(post, options)
         add_echo(post, options)
+        add_submerchant_id(post, options)
 
         commit(:refund, post)
       end
@@ -184,8 +189,9 @@ module ActiveMerchant #:nodoc:
         add_customer_data(post, options)
         add_email(post, options)
         add_echo(post, options)
+        add_submerchant_id(post, options)
         add_transaction_type(post, options)
-        
+
         commit(:credit, post)
       end
 
@@ -268,6 +274,10 @@ module ActiveMerchant #:nodoc:
         post[:d2] = options[:echo] unless options[:echo].blank?
       end
 
+      def add_submerchant_id(post, options)
+        post[:h3] = options[:submerchant_id] if options[:submerchant_id]
+      end
+
       def add_transaction_type(post, options)
         post[:a9] = options[:transaction_type] if options[:transaction_type]
       end
@@ -307,11 +317,11 @@ module ActiveMerchant #:nodoc:
       end
 
       def post_data(action, params, reference_action)
-        params.keys.each { |key| params[key] = params[key].to_s}
+        params.keys.each { |key| params[key] = params[key].to_s }
         params[:M] = @options[:merchant_id]
         params[:O] = request_action(action, reference_action)
         params[:K] = sign_request(params)
-        params.map {|k, v| "#{k}=#{CGI.escape(v.to_s)}"}.join('&')
+        params.map { |k, v| "#{k}=#{CGI.escape(v.to_s)}" }.join('&')
       end
 
       def request_action(action, reference_action)
@@ -327,7 +337,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(body)
-        Hash[CGI::parse(body).map{|k,v| [k.upcase,v.first]}]
+        Hash[CGI::parse(body).map { |k, v| [k.upcase, v.first] }]
       end
 
       def success_from(response)

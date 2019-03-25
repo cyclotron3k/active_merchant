@@ -89,10 +89,10 @@ module ActiveMerchant #:nodoc:
       end
 
       def scrub(transcript)
-        transcript
-          .gsub(%r((Authorization: Basic )\w+), '\1[FILTERED]')
-          .gsub(%r(("cvv\\":\\")\d*), '\1[FILTERED]')
-          .gsub(%r((card\\":{\\"number\\":\\")\d*), '\1[FILTERED]')
+        transcript.
+          gsub(%r((Authorization: Basic )\w+), '\1[FILTERED]').
+          gsub(%r(("cvv\\":\\")\d*), '\1[FILTERED]').
+          gsub(%r((card\\":{\\"number\\":\\")\d*), '\1[FILTERED]')
       end
 
       private
@@ -128,8 +128,8 @@ module ActiveMerchant #:nodoc:
       def add_shipping_address(post, options)
         if address = options[:shipping_address]
           post[:address] = {}
-          post[:address][:street] = address[:address1].match(/\D+/)[0].strip if address[:address1]
-          post[:address][:number] = address[:address1].match(/\d+/)[0] if address[:address1]
+          post[:address][:street] = address[:address1].match(/\D+/)[0].strip if address[:address1]&.match(/\D+/)
+          post[:address][:number] = address[:address1].match(/\d+/)[0] if address[:address1]&.match(/\d+/)
           post[:address][:compliment] = address[:address2] if address[:address2]
           post[:address][:city] = address[:city] if address[:city]
           post[:address][:state] = address[:state] if address[:state]
@@ -177,7 +177,7 @@ module ActiveMerchant #:nodoc:
           post[:payment][:credit_card][:card][:exp_year] = payment.year
           post[:payment][:credit_card][:card][:cvv] = payment.verification_value
           post[:payment][:credit_card][:card][:holder_document] = options[:holder_document] if options[:holder_document]
-          add_billing_address(post,'credit_card', options)
+          add_billing_address(post, 'credit_card', options)
         end
       end
 
@@ -224,7 +224,7 @@ module ActiveMerchant #:nodoc:
         when 'capture'
           "#{url}/charges/#{auth}/capture/"
         else
-         "#{url}/charges/"
+          "#{url}/charges/"
         end
       end
 
@@ -247,15 +247,15 @@ module ActiveMerchant #:nodoc:
           test: test?,
           error_code: error_code_from(response)
         )
-        rescue ResponseError => e
-          message = get_error_message(e)
-          return Response.new(
-                   false,
-                   "#{STANDARD_ERROR_MESSAGE_MAPPING[e.response.code]} #{message}",
-                   parse(e.response.body),
-                   test: test?,
-                   error_code: STANDARD_ERROR_CODE_MAPPING[e.response.code],
-                 )
+      rescue ResponseError => e
+        message = get_error_message(e)
+        return Response.new(
+          false,
+          "#{STANDARD_ERROR_MESSAGE_MAPPING[e.response.code]} #{message}",
+          parse(e.response.body),
+          test: test?,
+          error_code: STANDARD_ERROR_CODE_MAPPING[e.response.code]
+        )
       end
 
       def success_from(response)

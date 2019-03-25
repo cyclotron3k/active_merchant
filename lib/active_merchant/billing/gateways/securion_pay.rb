@@ -4,7 +4,6 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://api.securionpay.com/'
       self.live_url = 'https://api.securionpay.com/'
 
-
       self.supported_countries = %w(AL AD AT BY BE BG HR CY CZ RE DK EE IS FI FR DE GI GR HU IS IE IT IL LV LI LT LU
                                     MK MT MD MC NL NO PL PT RO RU MA RS SK SI ES SE CH UA GB KI CI ME)
 
@@ -74,11 +73,11 @@ module ActiveMerchant #:nodoc:
       def store(credit_card, options = {})
         if options[:customer_id].blank?
           MultiResponse.run() do |r|
-            #create charge object
+            # create charge object
             r.process { authorize(100, credit_card, options) }
-            #create customer and save card
+            # create customer and save card
             r.process { create_customer_add_card(r.authorization, options) }
-            #void the charge
+            # void the charge
             r.process(:ignore_result) { void(r.params['metadata']['chargeId'], options) }
           end
         else
@@ -166,7 +165,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_address(post, options)
-        return unless post[:card] && post[:card].kind_of?(Hash)
+        return unless post[:card]&.kind_of?(Hash)
         if address = options[:billing_address]
           post[:card][:addressLine1] = address[:address1] if address[:address1]
           post[:card][:addressLine2] = address[:address2] if address[:address2]
@@ -205,11 +204,9 @@ module ActiveMerchant #:nodoc:
       end
 
       def response_error(raw_response)
-        begin
-          parse(raw_response)
-        rescue JSON::ParserError
-          json_error(raw_response)
-        end
+        parse(raw_response)
+      rescue JSON::ParserError
+        json_error(raw_response)
       end
 
       def post_data(params)
@@ -260,7 +257,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def test?
-        (@options[:secret_key] && @options[:secret_key].include?('_test_'))
+        (@options[:secret_key]&.include?('_test_'))
       end
     end
   end

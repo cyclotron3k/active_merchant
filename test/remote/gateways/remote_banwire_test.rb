@@ -1,4 +1,5 @@
 # encoding: utf-8
+
 require 'test_helper'
 
 class RemoteBanwireTest < Test::Unit::TestCase
@@ -36,7 +37,6 @@ class RemoteBanwireTest < Test::Unit::TestCase
     assert_success response
   end
 
-
   def test_unsuccessful_purchase
     assert response = @gateway.purchase(@amount, @declined_card, @options)
     assert_failure response
@@ -53,14 +53,14 @@ class RemoteBanwireTest < Test::Unit::TestCase
     assert_equal 'ID de cuenta invalido', response.message
   end
 
-def test_transcript_scrubbing
-  transcript = capture_transcript(@gateway) do
-    @gateway.purchase(@amount, @credit_card, @options)
-  end
-  clean_transcript = @gateway.scrub(transcript)
+  def test_transcript_scrubbing
+    transcript = capture_transcript(@gateway) do
+      @gateway.purchase(@amount, @credit_card, @options)
+    end
+    clean_transcript = @gateway.scrub(transcript)
 
-  assert_scrubbed(@credit_card.number, clean_transcript)
-  assert_scrubbed(@credit_card.verification_value.to_s, clean_transcript)
-end
+    assert_scrubbed(@credit_card.number, clean_transcript)
+    assert_scrubbed(@credit_card.verification_value.to_s, clean_transcript)
+  end
 
 end

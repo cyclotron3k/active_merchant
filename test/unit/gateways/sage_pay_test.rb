@@ -223,8 +223,8 @@ class SagePayTest < Test::Unit::TestCase
   def test_FIxxxx_optional_fields_are_submitted
     stub_comms(@gateway, :ssl_request) do
       purchase_with_options(recipient_account_number: '1234567890',
-        recipient_surname: 'Withnail', recipient_postcode: 'AB11AB',
-        recipient_dob: '19701223')
+                            recipient_surname: 'Withnail', recipient_postcode: 'AB11AB',
+                            recipient_dob: '19701223')
     end.check_request do |method, endpoint, data, headers|
       assert_match(/FIRecipientAcctNumber=1234567890/, data)
       assert_match(/FIRecipientSurname=Withnail/, data)
@@ -319,7 +319,7 @@ class SagePayTest < Test::Unit::TestCase
       @gateway.refund(@amount, capture.authorization,
         order_id: generate_unique_id,
         description: 'Refund txn'
-       )
+      )
     end.respond_with(successful_refund_response)
     assert_success refund
   end
@@ -470,7 +470,6 @@ DeclineCode=00
 ExpiryDate=0616
 BankAuthCode=999777
   TRANSCRIPT
-
   end
 
   def scrubbed_transcript
@@ -492,6 +491,5 @@ DeclineCode=00
 ExpiryDate=0616
 BankAuthCode=999777
   TRANSCRIPT
-
   end
 end

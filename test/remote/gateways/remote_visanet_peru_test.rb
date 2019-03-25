@@ -89,7 +89,7 @@ class RemoteVisanetPeruTest < Test::Unit::TestCase
   def test_failed_capture
     response = @gateway.capture('900000044')
     assert_failure response
-    assert_match /NUMORDEN 900000044 no se encuentra registrado/, response.message
+    assert_match(/NUMORDEN 900000044 no se encuentra registrado/, response.message)
     assert_equal 400, response.error_code
   end
 
@@ -107,16 +107,16 @@ class RemoteVisanetPeruTest < Test::Unit::TestCase
     assert_success response
 
     new_auth = "_|#{response.authorization.split('|')[1]}"
-    refund = @gateway.refund(@amount, new_auth, @options.merge(force_full_refund_if_unsettled: true, ruc: '20341198217'))
+    @gateway.refund(@amount, new_auth, @options.merge(force_full_refund_if_unsettled: true, ruc: '20341198217'))
     # this test will fail currently because there is no E2E test working for visanet
     # assert_success refund
     # assert_equal "OK", refund.message
   end
 
   def test_failed_refund
-    response = @gateway.refund(@amount, '900000044' )
+    response = @gateway.refund(@amount, '900000044')
     assert_failure response
-    assert_match /NUMORDEN 900000044 no se encuentra registrado/, response.message
+    assert_match(/NUMORDEN 900000044 no se encuentra registrado/, response.message)
     assert_equal 400, response.error_code
   end
 
@@ -132,7 +132,7 @@ class RemoteVisanetPeruTest < Test::Unit::TestCase
   def test_failed_void
     response = @gateway.void('900000044')
     assert_failure response
-    assert_match /NUMORDEN no se encuentra registrado/, response.message
+    assert_match(/NUMORDEN no se encuentra registrado/, response.message)
     assert_equal 400, response.error_code
   end
 

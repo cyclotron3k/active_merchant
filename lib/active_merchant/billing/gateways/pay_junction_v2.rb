@@ -141,12 +141,12 @@ module ActiveMerchant #:nodoc:
           'Authorization' => 'Basic ' + Base64.encode64("#{@options[:api_login]}:#{@options[:api_password]}").strip,
           'Content-Type'  => 'application/x-www-form-urlencoded;charset=UTF-8',
           'Accept'  => 'application/json',
-          'X-PJ-Application-Key'  => "#{@options[:api_key]}"
+          'X-PJ-Application-Key'  => @options[:api_key].to_s
         }
       end
 
       def post_data(params)
-        params.map {|k, v| "#{k}=#{CGI.escape(v.to_s)}"}.join('&')
+        params.map { |k, v| "#{k}=#{CGI.escape(v.to_s)}" }.join('&')
       end
 
       def url(params={})
@@ -154,17 +154,15 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(body)
-        begin
-          JSON.parse(body)
-        rescue JSON::ParserError
-          message = 'Invalid JSON response received from PayJunctionV2Gateway. Please contact PayJunctionV2Gateway if you continue to receive this message.'
-          message += " (The raw response returned by the API was #{body.inspect})"
-          {
-            'errors' => [{
-              'message' => message
-            }]
-          }
-        end
+        JSON.parse(body)
+      rescue JSON::ParserError
+        message = 'Invalid JSON response received from PayJunctionV2Gateway. Please contact PayJunctionV2Gateway if you continue to receive this message.'
+        message += " (The raw response returned by the API was #{body.inspect})"
+        {
+          'errors' => [{
+            'message' => message
+          }]
+        }
       end
 
       def success_from(response)
@@ -175,7 +173,7 @@ module ActiveMerchant #:nodoc:
       def message_from(response)
         return response['response']['message'] if response['response']
 
-        response['errors'].inject(''){ |message,error| error['message'] + '|' + message } if response['errors']
+        response['errors']&.inject('') { |message, error| error['message'] + '|' + message }
       end
 
       def authorization_from(response)

@@ -45,7 +45,7 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
     assert_equal 'Street address does not match, but 5-digit postal code matches.', response.avs_result['message']
     assert_equal 'CVV matches', response.cvv_result['message']
   end
- 
+
   def test_successful_purchase_no_avs
     options = @options.dup
     options[:shipping_address] = nil
@@ -76,7 +76,6 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
     assert_equal 'CVV matches', response.cvv_result['message']
   end
 
-
   def test_successful_purchase_without_cvv
     credit_card_opts = {
       :number => 4485896261017708,
@@ -102,6 +101,32 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
       :last_name => 'Longsen',
       :verification_value => '',
       :brand => 'visa'
+    }
+
+    credit_card = CreditCard.new(credit_card_opts)
+    response = @gateway.purchase(@amount, credit_card, @options)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+  end
+
+  def test_successful_purchase_without_name
+    credit_card_opts = {
+      :number => 4485896261017708,
+      :month => Date.new((Time.now.year + 1), 9, 30).month,
+      :year => Date.new((Time.now.year + 1), 9, 30).year,
+      :first_name => '',
+      :last_name => ''
+    }
+
+    credit_card = CreditCard.new(credit_card_opts)
+    response = @gateway.purchase(@amount, credit_card, @options)
+    assert_success response
+    assert_equal 'Succeeded', response.message
+
+    credit_card_opts = {
+      :number => 4485896261017708,
+      :month => Date.new((Time.now.year + 1), 9, 30).month,
+      :year => Date.new((Time.now.year + 1), 9, 30).year
     }
 
     credit_card = CreditCard.new(credit_card_opts)
@@ -233,7 +258,7 @@ class RemoteTransFirstTransactionExpressTest < Test::Unit::TestCase
   def test_successful_refund_with_echeck
     purchase = @gateway.purchase(@amount, @check, @options)
     assert_success purchase
-    assert_match /purchase_echeck/, purchase.authorization
+    assert_match(/purchase_echeck/, purchase.authorization)
 
     refund = @gateway.refund(@amount, purchase.authorization)
     assert_success refund

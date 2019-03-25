@@ -189,7 +189,6 @@ module ActiveMerchant #:nodoc:
           xml.tag!('CUSTOMER_SHIP', NIL_ATTRIBUTE) do
           end
         end
-
       end
 
       def add_merchant_key(xml, options)
@@ -248,7 +247,7 @@ module ActiveMerchant #:nodoc:
 
       def recurring_parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|e| recurring_parse_element(response, e) }
+          node.elements.each { |e| recurring_parse_element(response, e) }
         else
           response[node.name.underscore.to_sym] = node.text
         end

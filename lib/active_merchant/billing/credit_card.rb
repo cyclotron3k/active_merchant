@@ -15,12 +15,10 @@ module ActiveMerchant #:nodoc:
     # * American Express
     # * Diner's Club
     # * JCB
-    # * Switch
-    # * Solo
     # * Dankort
     # * Maestro
     # * Forbrugsforeningen
-    # * Laser
+    # * Elo
     #
     # For testing purposes, use the 'bogus' credit card brand. This skips the vast majority of
     # validations, allowing you to focus on your core concerns until you're ready to be more concerned
@@ -88,12 +86,10 @@ module ActiveMerchant #:nodoc:
       # * +'american_express'+
       # * +'diners_club'+
       # * +'jcb'+
-      # * +'switch'+
-      # * +'solo'+
       # * +'dankort'+
       # * +'maestro'+
       # * +'forbrugsforeningen'+
-      # * +'laser'+
+      # * +'elo'+
       #
       # Or, if you wish to test your implementation, +'bogus'+.
       #
@@ -120,10 +116,6 @@ module ActiveMerchant #:nodoc:
       #
       # @return [String]
       attr_accessor :last_name
-
-      # Required for Switch / Solo cards
-      attr_reader :start_month, :start_year
-      attr_accessor :issue_number
 
       # Returns or sets the card verification value.
       #
@@ -303,8 +295,7 @@ module ActiveMerchant #:nodoc:
 
         errors_hash(
           errors +
-          validate_card_brand_and_number +
-          validate_switch_or_solo_attributes
+          validate_card_brand_and_number
         )
       end
 
@@ -350,7 +341,7 @@ module ActiveMerchant #:nodoc:
         errors = []
 
         if !empty?(brand)
-          errors << [:brand, 'is invalid']  if !CreditCard.card_companies.keys.include?(brand)
+          errors << [:brand, 'is invalid']  if !CreditCard.card_companies.include?(brand)
         end
 
         if empty?(number)
@@ -373,30 +364,9 @@ module ActiveMerchant #:nodoc:
           unless valid_card_verification_value?(verification_value, brand)
             errors << [:verification_value, "should be #{card_verification_value_length(brand)} digits"]
           end
-        elsif requires_verification_value?
+        elsif requires_verification_value? && !valid_card_verification_value?(verification_value, brand)
           errors << [:verification_value, 'is required']
         end
-        errors
-      end
-
-      def validate_switch_or_solo_attributes #:nodoc:
-        errors = []
-
-        if %w[switch solo].include?(brand)
-          valid_start_month = valid_month?(start_month)
-          valid_start_year = valid_start_year?(start_year)
-
-          if((!valid_start_month || !valid_start_year) && !valid_issue_number?(issue_number))
-            if empty?(issue_number)
-              errors << [:issue_number, 'cannot be empty']
-              errors << [:start_month, 'is invalid'] if !valid_start_month
-              errors << [:start_year,  'is invalid'] if !valid_start_year
-            else
-              errors << [:issue_number, 'is invalid'] if !valid_issue_number?(issue_number)
-            end
-          end
-        end
-
         errors
       end
 
@@ -412,16 +382,15 @@ module ActiveMerchant #:nodoc:
         end
 
         def expiration #:nodoc:
-          begin
-            Time.utc(year, month, month_days, 23, 59, 59)
-          rescue ArgumentError
-            Time.at(0).utc
-          end
+          Time.utc(year, month, month_days, 23, 59, 59)
+        rescue ArgumentError
+          Time.at(0).utc
         end
 
         private
+
         def month_days
-          mdays = [nil,31,28,31,30,31,30,31,31,30,31,30,31]
+          mdays = [nil, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
           mdays[2] = 29 if Date.leap?(year)
           mdays[month]
         end

@@ -156,7 +156,6 @@ module ActiveMerchant #:nodoc:
 
       def capture(money, authorization, options = {})
         reference, _, _ = split_auth(authorization)
-
         post = {}
         add_amount(post, money)
         add_reference(post, reference)
@@ -194,11 +193,11 @@ module ActiveMerchant #:nodoc:
       end
 
       def void_action(original_transaction_type)
-        (original_transaction_type == TRANSACTIONS[:refund]) ? :void_refund : :void_purchase
+        original_transaction_type == TRANSACTIONS[:refund] ? :void_refund : :void_purchase
       end
 
       def refund_action(type)
-        (type == TRANSACTIONS[:check_purchase]) ? :check_refund : :refund
+        type == TRANSACTIONS[:check_purchase] ? :check_refund : :refund
       end
 
       def secure_profile_action(type)
@@ -267,7 +266,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_recurring_payment(post, options)
-        post[:recurringPayment] = true if options[:recurring].to_s == 'true'
+        post[:recurringPayment] = 1 if options[:recurring].to_s == 'true'
       end
 
       def add_invoice(post, options)
@@ -313,7 +312,6 @@ module ActiveMerchant #:nodoc:
         post[:serviceVersion] = SP_SERVICE_VERSION
         post[:responseFormat] = 'QS'
         post[:cardValidation] = (options[:cardValidation].to_i == 1) || '0'
-
         post[:operationType] = options[:operationType] || options[:operation] || secure_profile_action(:new)
         post[:customerCode] = options[:billing_id] || options[:vault_id] || false
         post[:status] = options[:status]
@@ -377,11 +375,9 @@ module ActiveMerchant #:nodoc:
 
       def parse(body)
         results = {}
-        if !body.nil?
-          body.split(/&/).each do |pair|
-            key, val = pair.split(/\=/)
-            results[key.to_sym] = val.nil? ? nil : CGI.unescape(val)
-          end
+        body&.split(/&/)&.each do |pair|
+          key, val = pair.split(/\=/)
+          results[key.to_sym] = val.nil? ? nil : CGI.unescape(val)
         end
 
         # Clean up the message text if there is any
@@ -402,7 +398,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(params, use_profile_api = false)
-        post(post_data(params,use_profile_api),use_profile_api)
+        post(post_data(params, use_profile_api), use_profile_api)
       end
 
       def recurring_commit(params)
@@ -416,7 +412,7 @@ module ActiveMerchant #:nodoc:
           :test => test? || response[:authCode] == 'TEST',
           :authorization => authorization_from(response),
           :cvv_result => CVD_CODES[response[:cvdId]],
-          :avs_result => { :code => (AVS_CODES.include? response[:avsId]) ? AVS_CODES[response[:avsId]] : response[:avsId] }
+          :avs_result => { :code => AVS_CODES.include?(response[:avsId]) ? AVS_CODES[response[:avsId]] : response[:avsId] }
         )
       end
 
@@ -462,13 +458,13 @@ module ActiveMerchant #:nodoc:
           params[:username] = @options[:user] if @options[:user]
           params[:password] = @options[:password] if @options[:password]
           params[:merchant_id] = @options[:login]
+          params[:passcode] = @options[:api_key]
         end
         params[:vbvEnabled] = '0'
         params[:scEnabled] = '0'
 
-        params.reject{|k, v| v.blank?}.collect { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
+        params.reject { |k, v| v.blank? }.collect { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
       end
-
     end
   end
 end

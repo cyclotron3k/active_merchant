@@ -5,7 +5,7 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://sandbox-api.openpay.mx/v1/'
 
       self.supported_countries = ['MX']
-      self.supported_cardtypes = [:visa, :master, :american_express]
+      self.supported_cardtypes = [:visa, :master, :american_express, :carnet]
       self.homepage_url = 'http://www.openpay.mx/'
       self.display_name = 'Openpay'
       self.default_currency = 'MXN'
@@ -104,6 +104,7 @@ module ActiveMerchant #:nodoc:
           gsub(%r((cvv2\\?":\\?")\\?"), '\1[BLANK]"').
           gsub(%r((cvv2\\?":\\?")\s+), '\1[BLANK]')
       end
+
       private
 
       def create_post_for_auth_or_purchase(money, creditcard, options)
@@ -126,8 +127,8 @@ module ActiveMerchant #:nodoc:
         elsif creditcard.respond_to?(:number)
           card = {
             card_number: creditcard.number,
-            expiration_month: "#{sprintf("%02d", creditcard.month)}",
-            expiration_year: "#{"#{creditcard.year}"[-2, 2]}",
+            expiration_month: sprintf('%02d', creditcard.month),
+            expiration_year: creditcard.year.to_s[-2, 2],
             cvv2: creditcard.verification_value,
             holder_name: creditcard.name
           }
@@ -204,15 +205,13 @@ module ActiveMerchant #:nodoc:
       end
 
       def error?(response)
-        response.key?('error_code')
+        response['error_code'] && !response['error_code'].blank?
       end
 
       def response_error(raw_response)
-        begin
-          parse(raw_response)
-        rescue JSON::ParserError
-          json_error(raw_response)
-        end
+        parse(raw_response)
+      rescue JSON::ParserError
+        json_error(raw_response)
       end
 
       def json_error(raw_response)

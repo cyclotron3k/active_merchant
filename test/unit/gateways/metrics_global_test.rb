@@ -44,7 +44,7 @@ class MetricsGlobalTest < Test::Unit::TestCase
   def test_add_address_outsite_north_america
     result = {}
 
-    @gateway.send(:add_address, result, :billing_address => {:address1 => '164 Waverley Street', :country => 'DE', :state => ''} )
+    @gateway.send(:add_address, result, :billing_address => {:address1 => '164 Waverley Street', :country => 'DE', :state => ''})
 
     assert_equal ['address', 'city', 'company', 'country', 'phone', 'state', 'zip'], result.stringify_keys.keys.sort
     assert_equal 'n/a', result[:state]
@@ -55,13 +55,12 @@ class MetricsGlobalTest < Test::Unit::TestCase
   def test_add_address
     result = {}
 
-    @gateway.send(:add_address, result, :billing_address => {:address1 => '164 Waverley Street', :country => 'US', :state => 'CO'} )
+    @gateway.send(:add_address, result, :billing_address => {:address1 => '164 Waverley Street', :country => 'US', :state => 'CO'})
 
     assert_equal ['address', 'city', 'company', 'country', 'phone', 'state', 'zip'], result.stringify_keys.keys.sort
     assert_equal 'CO', result[:state]
     assert_equal '164 Waverley Street', result[:address]
     assert_equal 'US', result[:country]
-
   end
 
   def test_add_invoice
@@ -91,12 +90,12 @@ class MetricsGlobalTest < Test::Unit::TestCase
   end
 
   def test_purchase_is_valid_csv
-   params = { :amount => '1.01' }
+    params = { :amount => '1.01' }
 
-   @gateway.send(:add_creditcard, params, @credit_card)
+    @gateway.send(:add_creditcard, params, @credit_card)
 
-   assert data = @gateway.send(:post_data, 'AUTH_ONLY', params)
-   assert_equal post_data_fixture.size, data.size
+    assert data = @gateway.send(:post_data, 'AUTH_ONLY', params)
+    assert_equal post_data_fixture.size, data.size
   end
 
   def test_purchase_meets_minimum_requirements

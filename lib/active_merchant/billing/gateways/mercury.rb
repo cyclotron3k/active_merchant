@@ -18,7 +18,7 @@ module ActiveMerchant #:nodoc:
 
       self.homepage_url = 'http://www.mercurypay.com'
       self.display_name = 'Mercury'
-      self.supported_countries = ['US','CA']
+      self.supported_countries = ['US', 'CA']
       self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
       self.default_currency = 'USD'
 
@@ -103,7 +103,7 @@ module ActiveMerchant #:nodoc:
           xml.tag! 'Transaction' do
             xml.tag! 'TranType', 'Credit'
             xml.tag! 'TranCode', action
-            if options[:allow_partial_auth] && (action == 'PreAuth' || action == 'Sale')
+            if options[:allow_partial_auth] && ['PreAuth', 'Sale'].include?(action)
               xml.tag! 'PartialAuth', 'Allow'
             end
             add_invoice(xml, options[:order_id], nil, options)
@@ -212,7 +212,7 @@ module ActiveMerchant #:nodoc:
             # Track 1 and 2 have identical end sentinels (ETX) of '?'
             # Tracks may or may not have checksum (LRC) after the ETX
             # If the track has no STX or is corrupt, we send it as track 1, to let Mercury
-            #handle with the validation error as it sees fit.
+            # handle with the validation error as it sees fit.
             # Track 2 requires having the STX and ETX stripped. Track 1 does not.
             # Max-length track 1s require having the STX and ETX stripped. Max is 79 bytes including LRC.
             is_track_2 = credit_card.track_data[0] == ';'
@@ -319,7 +319,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def authorization_from(response)
-        dollars, cents = (response[:purchase] || '').split('.').collect{|e| e.to_i}
+        dollars, cents = (response[:purchase] || '').split('.').collect(&:to_i)
         dollars ||= 0
         cents ||= 0
         [
@@ -349,7 +349,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def unescape_xml(escaped_xml)
-        escaped_xml.gsub(/\&gt;/,'>').gsub(/\&lt;/,'<')
+        escaped_xml.gsub(/\&gt;/, '>').gsub(/\&lt;/, '<')
       end
     end
   end

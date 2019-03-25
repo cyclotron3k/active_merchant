@@ -90,12 +90,44 @@ class RemoteStripeTest < Test::Unit::TestCase
     assert_equal 'wow@example.com', response.params['metadata']['email']
   end
 
+  def test_successful_purchase_with_level3_data
+    @options[:merchant_reference] = 123
+    @options[:customer_reference] = 456
+    @options[:shipping_address_zip] = 98765
+    @options[:shipping_from_zip] = 54321
+    @options[:shipping_amount] = 10
+    @options[:line_items] = [
+      {
+        'product_code' => 1234,
+        'product_description' => 'An item',
+        'unit_cost' => 15,
+        'quantity' => 2,
+        'tax_amount' => 0
+      },
+      {
+        'product_code' => 999,
+        'product_description' => 'A totes different item',
+        'tax_amount' => 10,
+        'unit_cost' => 50,
+        'quantity' => 1,
+      }
+    ]
+
+    assert response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_success response
+    assert_equal 'charge', response.params['object']
+    assert_equal response.authorization, response.params['id']
+    assert response.params['paid']
+    assert_equal 'ActiveMerchant Test Purchase', response.params['description']
+    assert_equal 'wow@example.com', response.params['metadata']['email']
+  end
+
   def test_unsuccessful_purchase
     assert response = @gateway.purchase(@amount, @declined_card, @options)
     assert_failure response
     assert_match %r{Your card was declined}, response.message
     assert_match Gateway::STANDARD_ERROR_CODE[:card_declined], response.error_code
-    assert_match /ch_[a-zA-Z\d]+/, response.authorization
+    assert_match(/ch_[a-zA-Z\d]+/, response.authorization)
   end
 
   def test_unsuccessful_purchase_with_destination_and_amount
@@ -194,6 +226,17 @@ class RemoteStripeTest < Test::Unit::TestCase
     assert_equal '123', void.params['metadata']['test_metadata']
   end
 
+  def test_successful_void_with_reason
+    assert response = @gateway.authorize(@amount, @credit_card, @options)
+    assert_success response
+    assert response.authorization
+
+    assert void = @gateway.void(response.authorization, reason: 'fraudulent')
+    assert void.test?
+    assert_success void
+    assert_equal 'fraudulent', void.params['reason']
+  end
+
   def test_unsuccessful_void
     assert void = @gateway.void('active_merchant_fake_charge')
     assert_failure void
@@ -209,6 +252,19 @@ class RemoteStripeTest < Test::Unit::TestCase
     refund_id = refund.params['id']
     assert_equal refund.authorization, refund_id
     assert_success refund
+  end
+
+  def test_successful_refund_with_reason
+    assert response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_success response
+    assert response.authorization
+
+    assert refund = @gateway.refund(@amount - 20, response.authorization, reason: 'fraudulent')
+    assert refund.test?
+    refund_id = refund.params['id']
+    assert_equal refund.authorization, refund_id
+    assert_success refund
+    assert_equal 'fraudulent', refund.params['reason']
   end
 
   def test_successful_refund_on_verified_bank_account
@@ -450,8 +506,8 @@ class RemoteStripeTest < Test::Unit::TestCase
     response = @gateway.store(@check, @options)
     assert_success response
     customer_id, bank_account_id = response.authorization.split('|')
-    assert_match /^cus_/, customer_id
-    assert_match /^ba_/, bank_account_id
+    assert_match(/^cus_/, customer_id)
+    assert_match(/^ba_/, bank_account_id)
   end
 
   def test_unsuccessful_purchase_from_stored_but_unverified_bank_account

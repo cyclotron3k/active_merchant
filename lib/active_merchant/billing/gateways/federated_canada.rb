@@ -134,7 +134,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def test?
-        (@options[:login].eql?('demo')) && (@options[:password].eql?('password'))
+        @options[:login].eql?('demo') && @options[:password].eql?('password')
       end
 
       def message_from(response)
@@ -152,9 +152,8 @@ module ActiveMerchant #:nodoc:
         parameters[:type] = action
         parameters[:username] = @options[:login]
         parameters[:password] = @options[:password]
-        parameters.map{|k, v| "#{k}=#{CGI.escape(v.to_s)}"}.join('&')
+        parameters.map { |k, v| "#{k}=#{CGI.escape(v.to_s)}" }.join('&')
       end
     end
   end
 end
-

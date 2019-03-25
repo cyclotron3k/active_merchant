@@ -213,7 +213,6 @@ module ActiveMerchant #:nodoc:
           :cvv_result => CVVResult.new(response['cvv2_response']),
           test: test?
         )
-
       rescue JSON::ParserError
         unparsable_response(raw_response)
       end
@@ -232,7 +231,7 @@ module ActiveMerchant #:nodoc:
 
       def post_data(action, params)
         params[:transaction_type] = action
-        params.map {|k, v| "#{k}=#{CGI.escape(v.to_s)}"}.join('&')
+        params.map { |k, v| "#{k}=#{CGI.escape(v.to_s)}" }.join('&')
       end
 
       def unparsable_response(raw_response)

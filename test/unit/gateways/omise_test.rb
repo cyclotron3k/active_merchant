@@ -4,7 +4,7 @@ class OmiseTest < Test::Unit::TestCase
   def setup
     @gateway = OmiseGateway.new(
       public_key: 'pkey_test_abc',
-      secret_key: 'skey_test_123',
+      secret_key: 'skey_test_123'
     )
 
     @credit_card = credit_card
@@ -39,8 +39,8 @@ class OmiseTest < Test::Unit::TestCase
   end
 
   def test_gateway_url
-     assert_equal 'https://api.omise.co/', OmiseGateway::API_URL
-     assert_equal 'https://vault.omise.co/', OmiseGateway::VAULT_URL
+    assert_equal 'https://api.omise.co/', OmiseGateway::API_URL
+    assert_equal 'https://vault.omise.co/', OmiseGateway::VAULT_URL
   end
 
   def test_request_headers

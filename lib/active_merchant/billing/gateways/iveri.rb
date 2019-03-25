@@ -187,7 +187,7 @@ module ActiveMerchant #:nodoc:
         vxml = Nokogiri::XML(body).remove_namespaces!.xpath('//Envelope/Body/ExecuteResponse/ExecuteResult').inner_text
         doc = Nokogiri::XML(vxml)
         doc.xpath('*').each do |node|
-          if (node.elements.empty?)
+          if node.elements.empty?
             parsed[underscore(node.name)] = node.text
           else
             node.elements.each do |childnode|
@@ -206,7 +206,7 @@ module ActiveMerchant #:nodoc:
         end
 
         if !node.elements.empty?
-          node.elements.each {|e| parse_element(parsed, e) }
+          node.elements.each { |e| parse_element(parsed, e) }
         else
           parsed[underscore(node.name)] = node.text
         end
@@ -241,8 +241,8 @@ module ActiveMerchant #:nodoc:
 
       def underscore(camel_cased_word)
         camel_cased_word.to_s.gsub(/::/, '/').
-          gsub(/([A-Z]+)([A-Z][a-z])/,'\1_\2').
-          gsub(/([a-z\d])([A-Z])/,'\1_\2').
+          gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').
+          gsub(/([a-z\d])([A-Z])/, '\1_\2').
           tr('-', '_').
           downcase
       end

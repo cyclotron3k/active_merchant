@@ -16,20 +16,20 @@ class VisanetPeruTest < Test::Unit::TestCase
   end
 
   def test_successful_purchase
-    @gateway.expects(:ssl_request).returns(successful_authorize_response)
-    @gateway.expects(:ssl_request).returns(successful_capture_response)
+    @gateway.expects(:ssl_request).with(:post, any_parameters).returns(successful_authorize_response)
+    @gateway.expects(:ssl_request).with(:put, any_parameters).returns(successful_capture_response)
 
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
     assert_equal 'OK', response.message
 
     assert_match %r([0-9]{9}|$), response.authorization
-    assert_equal @options[:order_id], response.params['externalTransactionId']
+    assert_equal 'de9dc65c094fb4f1defddc562731af81', response.params['externalTransactionId']
     assert response.test?
   end
 
   def test_failed_purchase
-    @gateway.expects(:ssl_request).returns(failed_authorize_response_bad_card)
+    @gateway.expects(:ssl_request).with(:post, any_parameters).returns(failed_authorize_response_bad_card)
 
     response = @gateway.purchase(@amount, @declined_card, @options)
     assert_failure response
@@ -64,14 +64,14 @@ class VisanetPeruTest < Test::Unit::TestCase
   end
 
   def test_successful_capture
-    @gateway.expects(:ssl_request).returns(successful_authorize_response)
-    @gateway.expects(:ssl_request).returns(successful_capture_response)
+    @gateway.expects(:ssl_request).with(:post, any_parameters).returns(successful_authorize_response)
+    @gateway.expects(:ssl_request).with(:put, any_parameters).returns(successful_capture_response)
     response = @gateway.authorize(@amount, @credit_card, @options)
     capture = @gateway.capture(response.authorization, @options)
     assert_success capture
     assert_equal 'OK', capture.message
     assert_match %r(^[0-9]{9}|$), capture.authorization
-    assert_equal @options[:order_id], capture.params['externalTransactionId']
+    assert_equal 'de9dc65c094fb4f1defddc562731af81', capture.params['externalTransactionId']
     assert capture.test?
   end
 
@@ -90,14 +90,14 @@ class VisanetPeruTest < Test::Unit::TestCase
     response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
 
-    @gateway.expects(:ssl_request).returns(successful_refund_response)
+    @gateway.expects(:ssl_request).with(:put, any_parameters).returns(successful_refund_response)
     refund = @gateway.refund(@amount, response.authorization)
     assert_success refund
     assert_equal 'OK', refund.message
   end
 
   def test_failed_refund
-    @gateway.expects(:ssl_request).returns(failed_refund_response)
+    @gateway.expects(:ssl_request).with(:put, any_parameters).returns(failed_refund_response)
     response = @gateway.refund(@amount, '122333444')
     assert_failure response
     assert_match(/No se realizo la anulacion del deposito/, response.message)
@@ -299,7 +299,7 @@ class VisanetPeruTest < Test::Unit::TestCase
   end
 
   def successful_capture_response
-   '{"errorCode":0,"errorMessage":"OK","transactionUUID":"8517cf68-4820-4224-959b-01c8117385e0","externalTransactionId":"de9dc65c094fb4f1defddc562731af81","transactionDateTime":1519937673906,"transactionDuration":0,"merchantId":"543025501","userTokenId":null,"aliasName":null,"data":{"FECHAYHORA_TX":null,"DSC_ECI":null,"DSC_COD_ACCION":null,"NOM_EMISOR":null,"ESTADO":"Depositado","RESPUESTA":"1","ID_UNICO":null,"NUMORDEN":null,"CODACCION":null,"ETICKET":null,"IMP_AUTORIZADO":null,"DECISIONCS":null,"COD_AUTORIZA":null,"CODTIENDA":"543025501","PAN":null,"ORI_TARJETA":null}}'
+    '{"errorCode":0,"errorMessage":"OK","transactionUUID":"8517cf68-4820-4224-959b-01c8117385e0","externalTransactionId":"de9dc65c094fb4f1defddc562731af81","transactionDateTime":1519937673906,"transactionDuration":0,"merchantId":"543025501","userTokenId":null,"aliasName":null,"data":{"FECHAYHORA_TX":null,"DSC_ECI":null,"DSC_COD_ACCION":null,"NOM_EMISOR":null,"ESTADO":"Depositado","RESPUESTA":"1","ID_UNICO":null,"NUMORDEN":null,"CODACCION":null,"ETICKET":null,"IMP_AUTORIZADO":null,"DECISIONCS":null,"COD_AUTORIZA":null,"CODTIENDA":"543025501","PAN":null,"ORI_TARJETA":null}}'
   end
 
   def failed_capture_response

@@ -27,14 +27,13 @@ module ActiveMerchant #:nodoc:
         post = {}
         add_amount(post, amount)
         add_invoice(post, amount, options)
-        if (payment_method.respond_to?(:number))
+        if payment_method.respond_to?(:number)
           add_payment_method(post, payment_method, options)
           commit(:authorize, post)
         else
           add_ticket_id(post, payment_method)
           commit(:authorize_ticket, post)
         end
-
       end
 
       def capture(amount, authorization, options={})
@@ -88,7 +87,7 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      CURRENCY_CODES = Hash.new{|h,k| raise ArgumentError.new("Unsupported currency: #{k}")}
+      CURRENCY_CODES = Hash.new { |h, k| raise ArgumentError.new("Unsupported currency: #{k}") }
       CURRENCY_CODES['USD'] = '840'
       CURRENCY_CODES['DKK'] = '208'
       CURRENCY_CODES['NOK'] = '578'
@@ -110,14 +109,9 @@ module ActiveMerchant #:nodoc:
         post[:cvc] = payment_method.verification_value if payment_method.verification_value
         post[:expYear] = format(payment_method.year, :two_digits)
         post[:expMonth] = payment_method.month
-
-        post[:startMonth] = payment_method.start_month if payment_method.start_month
-        post[:startYear] = payment_method.start_year if payment_method.start_year
-        post[:issueNumber] = payment_method.issue_number if payment_method.issue_number
         post[:clientIp] = options[:ip] || '127.0.0.1'
         post[:test] = true if test?
       end
-
 
       def add_reference(post, authorization)
         post[:transactionId] = authorization
@@ -165,7 +159,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_hmac(post)
-        data = post.sort.collect { |key, value| "#{key}=#{value.to_s}" }.join('&')
+        data = post.sort.collect { |key, value| "#{key}=#{value}" }.join('&')
         digest = OpenSSL::Digest.new('sha256')
         key = [@options[:secret_key]].pack('H*')
         post[:MAC] = OpenSSL::HMAC.hexdigest(digest, key, data)

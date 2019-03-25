@@ -185,7 +185,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
   end
 
   def test_successful_create_customer_payment_profile_request_with_bank_account
-    payment_profile = @options[:profile].delete(:payment_profiles)
+    @options[:profile].delete(:payment_profiles)
     assert response = @gateway.create_customer_profile(@options)
     @customer_profile_id = response.authorization
 
@@ -254,7 +254,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
     assert response = @gateway.create_customer_profile(@options)
     @customer_profile_id = response.authorization
 
-    assert response = @gateway.get_customer_profile(:customer_profile_id => @customer_profile_id)
+    assert @gateway.get_customer_profile(:customer_profile_id => @customer_profile_id)
 
     assert response = @gateway.create_customer_payment_profile(
       :customer_profile_id => @customer_profile_id,
@@ -423,7 +423,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
     masked_credit_card = ActiveMerchant::Billing::CreditCard.new(:number => response.params['payment_profile']['payment']['credit_card']['card_number'])
 
     # Update only the billing address with a masked card and expiration date
-    assert response = @gateway.update_customer_payment_profile(
+    assert @gateway.update_customer_payment_profile(
       :customer_profile_id => @customer_profile_id,
       :payment_profile => {
         :customer_payment_profile_id => customer_payment_profile_id,
@@ -466,10 +466,10 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
     new_billing_address.update(:first_name => 'Frank', :last_name => 'Brown')
 
     # Initialize credit card with only last 4 digits as the number
-    last_four_credit_card = ActiveMerchant::Billing::CreditCard.new(:number => '4242') #Credit card with only last four digits
+    last_four_credit_card = ActiveMerchant::Billing::CreditCard.new(:number => '4242') # Credit card with only last four digits
 
     # Update only the billing address with a card with the last 4 digits and expiration date
-    assert response = @gateway.update_customer_payment_profile(
+    assert @gateway.update_customer_payment_profile(
       :customer_profile_id => @customer_profile_id,
       :payment_profile => {
         :customer_payment_profile_id => customer_payment_profile_id,
@@ -515,7 +515,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
     )
     new_address.delete(:phone_number)
 
-    #Update the shipping address
+    # Update the shipping address
     assert response = @gateway.update_customer_shipping_address(
       :customer_profile_id => @customer_profile_id,
       :address => new_address
@@ -615,7 +615,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
         :type => :auth_capture,
         :order => {
           :invoice_number => key.to_s,
-          :description => "Test Order Description #{key.to_s}",
+          :description => "Test Order Description #{key}",
           :purchase_order_number => key.to_s
         },
         :amount => @amount
@@ -651,7 +651,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
         :type => :auth_capture,
         :order => {
           :invoice_number => key.to_s,
-          :description => "Test Order Description #{key.to_s}",
+          :description => "Test Order Description #{key}",
           :purchase_order_number => key.to_s
         },
         :amount => @amount
@@ -766,7 +766,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
   end
 
   def get_and_validate_customer_payment_profile_request_with_bank_account_response
-    payment_profile = @options[:profile].delete(:payment_profiles)
+    @options[:profile].delete(:payment_profiles)
     assert response = @gateway.create_customer_profile(@options)
     @customer_profile_id = response.authorization
 
@@ -821,7 +821,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
         :type => :auth_capture,
         :order => {
           :invoice_number => key.to_s,
-          :description => "Test Order Description #{key.to_s}",
+          :description => "Test Order Description #{key}",
           :purchase_order_number => key.to_s
         },
         :amount => @amount
@@ -836,7 +836,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
     assert_equal 'auth_capture', response.params['direct_response']['transaction_type']
     assert_equal '100.00', response.params['direct_response']['amount']
     assert_equal response.params['direct_response']['invoice_number'], key.to_s
-    assert_equal response.params['direct_response']['order_description'], "Test Order Description #{key.to_s}"
+    assert_equal response.params['direct_response']['order_description'], "Test Order Description #{key}"
     assert_equal response.params['direct_response']['purchase_order_number'], key.to_s
     return response
   end
@@ -850,17 +850,17 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
     assert response = @gateway.get_customer_profile(:customer_profile_id => @customer_profile_id)
     @customer_payment_profile_id = response.params['profile']['payment_profiles']['customer_payment_profile_id']
     assert response = @gateway.create_customer_profile_transaction(
-     :transaction => {
-       :customer_profile_id => @customer_profile_id,
-       :customer_payment_profile_id => @customer_payment_profile_id,
-       :type => :auth_only,
-       :order => {
+      :transaction => {
+        :customer_profile_id => @customer_profile_id,
+        :customer_payment_profile_id => @customer_payment_profile_id,
+        :type => :auth_only,
+        :order => {
           :invoice_number => key.to_s,
-          :description => "Test Order Description #{key.to_s}",
+          :description => "Test Order Description #{key}",
           :purchase_order_number => key.to_s
         },
-       :amount => @amount
-     }
+        :amount => @amount
+      }
     )
 
     assert response.test?
@@ -872,6 +872,5 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
 
     return response
   end
-
 
 end

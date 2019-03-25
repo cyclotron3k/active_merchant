@@ -12,7 +12,6 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       self.supported_cardtypes = [:visa, :master, :american_express]
 
-
       def initialize(options={})
         requires!(options, :access_key)
         super
@@ -57,7 +56,6 @@ module ActiveMerchant #:nodoc:
       end
 
       def verify(credit_card, options={})
-
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(250, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -142,7 +140,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def post_data(action, params)
-        params.map {|k, v| "#{CGI.escape(k.to_s)}=#{CGI.escape(v.to_s)}"}.join('&')
+        params.map { |k, v| "#{CGI.escape(k.to_s)}=#{CGI.escape(v.to_s)}" }.join('&')
       end
 
       def url(action)

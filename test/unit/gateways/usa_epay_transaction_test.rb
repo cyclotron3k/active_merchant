@@ -53,6 +53,20 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_successful_purchase_with_echeck_and_extra_options
+    response = stub_comms do
+      @gateway.purchase(@amount, check(account_type: 'savings'), @options.merge(check_format: 'ARC'))
+    end.check_request do |endpoint, data, headers|
+      assert_match(/UMcheckformat=ARC/, data)
+      assert_match(/UMaccounttype=Savings/, data)
+    end.respond_with(successful_purchase_response_echeck)
+
+    assert_equal 'Success', response.message
+    assert_equal '133134803', response.authorization
+    assert_success response
+    assert response.test?
+  end
+
   def test_unsuccessful_request
     @gateway.expects(:ssl_post).returns(unsuccessful_purchase_response)
 
@@ -64,7 +78,7 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
 
   def test_successful_purchase_passing_extra_info
     response = stub_comms do
-      @gateway.purchase(@amount, @credit_card, @options.merge(:order_id => '1337', :description => 'socool'))
+      @gateway.purchase(@amount, @credit_card, @options.merge(:invoice => '1337', :description => 'socool'))
     end.check_request do |endpoint, data, headers|
       assert_match(/UMinvoice=1337/, data)
       assert_match(/UMdescription=socool/, data)
@@ -129,6 +143,97 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
     assert_success response
   end
 
+  def test_successful_purchase_recurring_fields
+    response = stub_comms do
+      @gateway.purchase(@amount, @credit_card, @options.merge(
+        :recurring_fields => {
+          add_customer: true,
+          schedule: 'quarterly',
+          bill_source_key: 'bill source key',
+          bill_amount: 123,
+          num_left: 5,
+          start: '20501212',
+          recurring_receipt: true
+        }
+      ))
+    end.check_request do |endpoint, data, headers|
+      assert_match %r{UMaddcustomer=yes},                 data
+      assert_match %r{UMschedule=quarterly},              data
+      assert_match %r{UMbillsourcekey=bill\+source\+key}, data
+      assert_match %r{UMbillamount=1.23},                 data
+      assert_match %r{UMnumleft=5},                       data
+      assert_match %r{UMstart=20501212},                  data
+      assert_match %r{UMrecurringreceipt=yes},            data
+    end.respond_with(successful_purchase_response)
+    assert_success response
+  end
+
+  def test_successful_purchase_custom_fields
+    response = stub_comms do
+      @gateway.purchase(@amount, @credit_card, @options.merge(
+        :custom_fields => {
+          1 => 'diablo',
+          2 => 'mephisto',
+          3 => 'baal'
+        }
+      ))
+    end.check_request do |endpoint, data, headers|
+      assert_match %r{UMcustom1=diablo},   data
+      assert_match %r{UMcustom2=mephisto}, data
+      assert_match %r{UMcustom3=baal},     data
+    end.respond_with(successful_purchase_response)
+    assert_success response
+  end
+
+  def test_first_index_guard_on_custom_fields
+    assert_raise(ArgumentError) do
+      @gateway.purchase(@amount, @credit_card, @options.merge(
+        :custom_fields => {
+          0 => 'butcher',
+          1 => 'diablo',
+          2 => 'mephisto',
+          3 => 'baal'
+        }
+      ))
+    end
+
+    assert_raise(ArgumentError) do
+      @gateway.purchase(@amount, @credit_card, @options.merge(
+        :custom_fields => {
+          '0' => 'butcher',
+          '1' => 'diablo',
+          '2' => 'mephisto',
+          '3' => 'baal'
+        }
+      ))
+    end
+  end
+
+  def test_successful_purchase_line_items
+    response = stub_comms do
+      @gateway.purchase(@amount, @credit_card, @options.merge(
+        :line_items => [
+          { :sku=> 'abc123', :cost => 119, :quantity => 1 },
+          { :sku => 'def456', :cost => 200, :quantity => 2, :name => 'an item' },
+          { :cost => 300, :qty => 4 }
+        ]
+      ))
+    end.check_request do |endpoint, data, headers|
+      assert_match %r{UMline0sku=abc123},    data
+      assert_match %r{UMline0cost=1.19},     data
+      assert_match %r{UMline0qty=1},         data
+
+      assert_match %r{UMline1sku=def456},    data
+      assert_match %r{UMline1cost=2.00},     data
+      assert_match %r{UMline1qty=2},         data
+      assert_match %r{UMline1name=an\+item}, data
+
+      assert_match %r{UMline2cost=3.00},     data
+      assert_match %r{UMline2qty=4},         data
+    end.respond_with(successful_purchase_response)
+    assert_success response
+  end
+
   def test_successful_authorize_request
     @gateway.expects(:ssl_post).returns(successful_authorize_response)
 
@@ -140,9 +245,10 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
 
   def test_successful_authorize_passing_extra_info
     response = stub_comms do
-      @gateway.authorize(@amount, @credit_card, @options.merge(:order_id => '1337', :description => 'socool'))
+      @gateway.authorize(@amount, @credit_card, @options.merge(:invoice => '1337', order_id: 'w00t', :description => 'socool'))
     end.check_request do |endpoint, data, headers|
       assert_match(/UMinvoice=1337/, data)
+      assert_match(/UMorderid=w00t/, data)
       assert_match(/UMdescription=socool/, data)
       assert_match(/UMtestmode=0/, data)
     end.respond_with(successful_authorize_response)
@@ -335,11 +441,11 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
   end
 
   def test_amount_style
-   assert_equal '10.34', @gateway.send(:amount, 1034)
+    assert_equal '10.34', @gateway.send(:amount, 1034)
 
-   assert_raise(ArgumentError) do
-     @gateway.send(:amount, '10.34')
-   end
+    assert_raise(ArgumentError) do
+      @gateway.send(:amount, '10.34')
+    end
   end
 
   def test_supported_countries
@@ -396,10 +502,8 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
     response = stub_comms do
       @gateway.purchase(@amount, @credit_card, @options)
     end.check_request do |endpoint, data, headers|
-
       assert_match %r{UMcard=4242424242424242},  data
       assert_match %r{UMcardpresent=true},       data
-
     end.respond_with(successful_purchase_response)
 
     assert_success response
@@ -456,7 +560,7 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
   end
 
   def purchase_request
-    "UMamount=1.00&UMinvoice=&UMdescription=&UMcard=4242424242424242&UMcvv2=123&UMexpir=09#{@credit_card.year.to_s[-2..-1]}&UMname=Longbob+Longsen&UMbillfname=Jim&UMbilllname=Smith&UMbillcompany=Widgets+Inc&UMbillstreet=456+My+Street&UMbillstreet2=Apt+1&UMbillcity=Ottawa&UMbillstate=ON&UMbillzip=K1C2N6&UMbillcountry=CA&UMbillphone=%28555%29555-5555&UMshipfname=Jim&UMshiplname=Smith&UMshipcompany=Widgets+Inc&UMshipstreet=456+My+Street&UMshipstreet2=Apt+1&UMshipcity=Ottawa&UMshipstate=ON&UMshipzip=K1C2N6&UMshipcountry=CA&UMshipphone=%28555%29555-5555&UMstreet=456+My+Street&UMzip=K1C2N6&UMcommand=cc%3Asale&UMkey=LOGIN&UMsoftware=Active+Merchant&UMtestmode=0"
+    "UMamount=1.00&UMinvoice=&UMorderid=&UMdescription=&UMcard=4242424242424242&UMcvv2=123&UMexpir=09#{@credit_card.year.to_s[-2..-1]}&UMname=Longbob+Longsen&UMbillfname=Jim&UMbilllname=Smith&UMbillcompany=Widgets+Inc&UMbillstreet=456+My+Street&UMbillstreet2=Apt+1&UMbillcity=Ottawa&UMbillstate=ON&UMbillzip=K1C2N6&UMbillcountry=CA&UMbillphone=%28555%29555-5555&UMshipfname=Jim&UMshiplname=Smith&UMshipcompany=Widgets+Inc&UMshipstreet=456+My+Street&UMshipstreet2=Apt+1&UMshipcity=Ottawa&UMshipstate=ON&UMshipzip=K1C2N6&UMshipcountry=CA&UMshipphone=%28555%29555-5555&UMstreet=456+My+Street&UMzip=K1C2N6&UMcommand=cc%3Asale&UMkey=LOGIN&UMsoftware=Active+Merchant&UMtestmode=0"
   end
 
   def successful_purchase_response
@@ -494,7 +598,6 @@ class UsaEpayTransactionTest < Test::Unit::TestCase
   def successful_void_response_echeck
     'UMversion=2.9&UMstatus=Approved&UMauthCode=TM80A5&UMrefNum=133134971&UMavsResult=No%20AVS%20response%20%28Typically%20no%20AVS%20data%20sent%20or%20swiped%20transaction%29&UMavsResultCode=&UMcvv2Result=No%20CVV2%2FCVC%20data%20available%20for%20transaction.&UMcvv2ResultCode=&UMresult=A&UMvpasResultCode=&UMerror=&UMerrorcode=00000&UMcustnum=&UMbatch=&UMbatchRefNum=&UMisDuplicate=N&UMconvertedAmount=&UMconvertedAmountCurrency=840&UMconversionRate=&UMcustReceiptResult=No%20Receipt%20Sent&UMprocRefNum=&UMcardLevelResult=&UMauthAmount=&UMfiller=filled'
   end
-
 
   def pre_scrubbed
     <<-EOS

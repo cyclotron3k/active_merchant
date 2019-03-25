@@ -76,7 +76,6 @@ module ActiveMerchant #:nodoc:
         post[:email]       = options[:email] || 'unknown@example.com'
         post[:currencyCode]= options[:currency] || currency(money)
         post[:merchAcct]   = options[:merchant]
-
       end
 
       def add_creditcard(params, creditcard)
@@ -112,7 +111,7 @@ module ActiveMerchant #:nodoc:
         results = {}
 
         body.split(/\&/).each do |pair|
-          key,val = pair.split(%r{=})
+          key, val = pair.split(%r{=})
           results[key] = CGI.unescape(val)
         end
 
@@ -127,8 +126,8 @@ module ActiveMerchant #:nodoc:
         if response['returnText'].present?
           response['returnText']
         else
-          'Invalid response received from the CommerceGate API. ' +
-          'Please contact CommerceGate support if you continue to receive this message. ' +
+          'Invalid response received from the CommerceGate API. ' \
+          'Please contact CommerceGate support if you continue to receive this message. ' \
           "(The raw response returned by the API was #{response.inspect})"
         end
       end

@@ -118,7 +118,7 @@ class RemotePayuLatamTest < Test::Unit::TestCase
         zip: '01019-030',
         phone: '(11)756312633'
       ),
-      buyer:{
+      buyer: {
         cnpj: '32593371000110'
       }
     }
@@ -251,6 +251,34 @@ class RemotePayuLatamTest < Test::Unit::TestCase
     assert_equal 'Credenciales inválidas', response.message
   end
 
+  # As noted above, capture transactions are currently not supported, but in the hope
+  # they will one day be, here you go
+
+  # def test_successful_capture
+  #   response = @gateway.authorize(@amount, @credit_card, @options)
+  #   assert_success response
+  #   assert_equal 'APPROVED', response.message
+  #   assert_match %r(^\d+\|(\w|-)+$), response.authorization
+
+  #   capture = @gateway.capture(@amount, response.authorization, @options)
+  #   assert_success capture
+  #   assert_equal 'APPROVED', response.message
+  #   assert response.test?
+  # end
+
+  # def test_successful_partial_capture
+  #   response = @gateway.authorize(@amount, @credit_card, @options)
+  #   assert_success response
+  #   assert_equal 'APPROVED', response.message
+  #   assert_match %r(^\d+\|(\w|-)+$), response.authorization
+
+  #   capture = @gateway.capture(@amount - 1, response.authorization, @options)
+  #   assert_success capture
+  #   assert_equal 'APPROVED', response.message
+  #   assert_equal '39.99', response.params['TX_VALUE']['value']
+  #   assert response.test?
+  # end
+
   def test_well_formed_refund_fails_as_expected
     purchase = @gateway.purchase(@amount, @credit_card, @options)
     assert_success purchase
@@ -262,13 +290,13 @@ class RemotePayuLatamTest < Test::Unit::TestCase
   def test_failed_refund
     response = @gateway.refund(@amount, '')
     assert_failure response
-    assert_match (/property: parentTransactionId, message: must not be null/), response.message
+    assert_match(/property: parentTransactionId, message: must not be null/, response.message)
   end
 
   def test_failed_refund_with_specified_language
     response = @gateway.refund(@amount, '', language: 'es')
     assert_failure response
-    assert_match (/property: parentTransactionId, message: No puede ser vacio/), response.message
+    assert_match(/property: parentTransactionId, message: No puede ser vacio/, response.message)
   end
 
   # If this test fails, support for void may have been added to the sandbox
@@ -284,13 +312,13 @@ class RemotePayuLatamTest < Test::Unit::TestCase
   def test_failed_void
     response = @gateway.void('')
     assert_failure response
-    assert_match (/property: parentTransactionId, message: must not be null/), response.message
+    assert_match(/property: parentTransactionId, message: must not be null/, response.message)
   end
 
   def test_failed_void_with_specified_language
     response = @gateway.void('', language: 'es')
     assert_failure response
-    assert_match (/property: parentTransactionId, message: No puede ser vacio/), response.message
+    assert_match(/property: parentTransactionId, message: No puede ser vacio/, response.message)
   end
 
   # If this test fails, support for captures may have been added to the sandbox
@@ -298,7 +326,7 @@ class RemotePayuLatamTest < Test::Unit::TestCase
     auth = @gateway.authorize(@amount, @credit_card, @options)
     assert_success auth
 
-    assert capture = @gateway.capture(@amount, auth.authorization)
+    assert capture = @gateway.capture(@amount, auth.authorization, @options)
     assert_failure capture
     assert_equal 'Internal payment provider error. ', capture.message
   end
@@ -306,7 +334,7 @@ class RemotePayuLatamTest < Test::Unit::TestCase
   def test_failed_capture
     response = @gateway.capture(@amount, '')
     assert_failure response
-    assert_match (/must not be null/), response.message
+    assert_match(/must not be null/, response.message)
   end
 
   def test_verify_credentials

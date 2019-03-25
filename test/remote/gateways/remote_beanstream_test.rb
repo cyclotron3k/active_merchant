@@ -79,10 +79,16 @@ class RemoteBeanstreamTest < Test::Unit::TestCase
   end
 
   def test_successful_visa_purchase_no_cvv
-    assert response = @gateway.purchase(@amount, @visa_no_cvv, @options)
+    assert response = @gateway.purchase(@amount, @visa_no_cvv, @options.merge(recurring: true))
     assert_success response
     assert_false response.authorization.blank?
     assert_equal 'Approved', response.message
+  end
+
+  def test_unsuccessful_visa_purchase_with_no_cvv
+    assert response = @gateway.purchase(@amount, @visa_no_cvv, @options)
+    assert_failure response
+    assert_equal 'Card CVD is invalid.', response.message
   end
 
   def test_unsuccessful_visa_purchase
@@ -261,7 +267,7 @@ class RemoteBeanstreamTest < Test::Unit::TestCase
     assert_success purchase
 
     assert refund = @gateway.refund(@amount, purchase.authorization)
-    assert_success credit
+    assert_success refund
   end
 
   def test_successful_recurring
@@ -303,14 +309,14 @@ class RemoteBeanstreamTest < Test::Unit::TestCase
   end
 
   def test_successful_add_to_vault_with_store_method
-    assert response = @gateway.store(@visa,@options)
+    assert response = @gateway.store(@visa, @options)
     assert_equal 'Operation Successful', response.message
     assert_success response
     assert_not_nil response.params['customer_vault_id']
   end
 
   def test_add_to_vault_with_custom_vault_id_with_store_method
-    @options[:vault_id] = rand(100000)+10001
+    @options[:vault_id] = rand(10001..110000)
     assert response = @gateway.store(@visa, @options.dup)
     assert_equal 'Operation Successful', response.message
     assert_success response
@@ -384,6 +390,7 @@ class RemoteBeanstreamTest < Test::Unit::TestCase
     assert_scrubbed(@visa.number, clean_transcript)
     assert_scrubbed(@visa.verification_value.to_s, clean_transcript)
     assert_scrubbed(@gateway.options[:password], clean_transcript)
+    assert_scrubbed(@gateway.options[:api_key], clean_transcript)
   end
 
   private

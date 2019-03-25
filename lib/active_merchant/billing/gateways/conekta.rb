@@ -4,7 +4,7 @@ module ActiveMerchant #:nodoc:
       self.live_url = 'https://api.conekta.io/'
 
       self.supported_countries = ['MX']
-      self.supported_cardtypes = [:visa, :master, :american_express]
+      self.supported_cardtypes = [:visa, :master, :american_express, :carnet]
       self.homepage_url = 'https://conekta.io/'
       self.display_name = 'Conekta Gateway'
       self.money_format = :cents
@@ -162,8 +162,8 @@ module ActiveMerchant #:nodoc:
           post[:card][:name] = payment_source.name
           post[:card][:cvc] = payment_source.verification_value
           post[:card][:number] = payment_source.number
-          post[:card][:exp_month] = "#{sprintf("%02d", payment_source.month)}"
-          post[:card][:exp_year] = "#{"#{payment_source.year}"[-2, 2]}"
+          post[:card][:exp_month] = sprintf('%02d', payment_source.month)
+          post[:card][:exp_year] = payment_source.year.to_s[-2, 2]
           add_address(post[:card], options)
         end
       end
@@ -211,11 +211,9 @@ module ActiveMerchant #:nodoc:
       end
 
       def response_error(raw_response)
-        begin
-          parse(raw_response)
-        rescue JSON::ParserError
-          json_error(raw_response)
-        end
+        parse(raw_response)
+      rescue JSON::ParserError
+        json_error(raw_response)
       end
 
       def json_error(raw_response)

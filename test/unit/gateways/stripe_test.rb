@@ -7,6 +7,8 @@ class StripeTest < Test::Unit::TestCase
     @gateway = StripeGateway.new(:login => 'login')
 
     @credit_card = credit_card()
+    @threeds_card = credit_card('4000000000003063')
+    @non_3ds_card = credit_card('378282246310005')
     @amount = 400
     @refund_amount = 200
 
@@ -14,6 +16,11 @@ class StripeTest < Test::Unit::TestCase
       :billing_address => address(),
       :statement_address => statement_address(),
       :description => 'Test Purchase'
+    }
+
+    @threeds_options = {
+      :execute_threed => true,
+      :callback_url => 'http://www.example.com/callback'
     }
 
     @apple_pay_payment_token = apple_pay_payment_token
@@ -429,6 +436,46 @@ class StripeTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_successful_purchase_with_level3_data
+    @gateway.expects(:add_creditcard)
+
+    @options[:merchant_reference] = 123
+    @options[:customer_reference] = 456
+    @options[:shipping_address_zip] = 98765
+    @options[:shipping_from_zip] = 54321
+    @options[:shipping_amount] = 40
+    @options[:line_items] = [
+      {
+        'product_code' => 1234,
+        'product_description' => 'An item',
+        'unit_cost' => 60,
+        'quantity' => 7,
+        'tax_amount' => 0
+      },
+      {
+        'product_code' => 999,
+        'tax_amount' => 888
+      }
+    ]
+
+    response = stub_comms(@gateway, :ssl_request) do
+      @gateway.purchase(@amount, @credit_card, @options)
+    end.check_request do |_method, endpoint, data, _headers|
+      if %r{/charges} =~ endpoint
+        assert_match('level3[merchant_reference]=123', data)
+        assert_match('level3[customer_reference]=456', data)
+        assert_match('level3[shipping_address_zip]=98765', data)
+        assert_match('level3[shipping_amount]=40', data)
+        assert_match('level3[shipping_from_zip]=54321', data)
+        assert_match('level3[line_items][0][product_description]=An+item', data)
+        assert_match('level3[line_items][1][product_code]=999', data)
+      end
+    end.respond_with(successful_purchase_response)
+
+    assert_success response
+    assert response.test?
+  end
+
   def test_amount_localization
     @gateway.expects(:ssl_request).returns(successful_purchase_response(true))
     @gateway.expects(:post_data).with do |params|
@@ -501,7 +548,7 @@ class StripeTest < Test::Unit::TestCase
 
   def test_void_contains_charge_expand
     @gateway.expects(:ssl_request).with do |_, _, post, _|
-      post.include?('expand[]=charge')
+      post.include?('expand[0]=charge')
     end.returns(successful_purchase_response(true))
 
     assert response = @gateway.void('ch_test_charge')
@@ -511,7 +558,8 @@ class StripeTest < Test::Unit::TestCase
   def test_void_with_additional_expand_contains_two_expands
     @gateway.expects(:ssl_request).with do |_, _, post, _|
       parsed = CGI.parse(post)
-      parsed['expand[]'].sort == ['balance_transaction', 'charge'].sort
+      parsed['expand[0]'] = 'balance_transaction'
+      parsed['expand[1]'] = 'charge'
     end.returns(successful_purchase_response(true))
 
     assert response = @gateway.void('ch_test_charge', expand: :balance_transaction)
@@ -521,7 +569,7 @@ class StripeTest < Test::Unit::TestCase
   def test_void_with_expand_charge_only_sends_one_charge_expand
     @gateway.expects(:ssl_request).with do |_, _, post, _|
       parsed = CGI.parse(post)
-      parsed['expand[]'] == ['charge']
+      parsed['expand[0]'] == ['charge']
     end.returns(successful_purchase_response(true))
 
     assert response = @gateway.void('ch_test_charge', expand: ['charge'])
@@ -537,10 +585,28 @@ class StripeTest < Test::Unit::TestCase
     assert_success response
   end
 
+  def test_successful_void_with_reason
+    @gateway.expects(:ssl_request).with do |_, _, post, _|
+      post.include?('reason=fraudulent')
+    end.returns(successful_purchase_response(true))
+
+    assert response = @gateway.void('ch_test_charge', {reason: 'fraudulent'})
+    assert_success response
+  end
+
   def test_successful_refund
     @gateway.expects(:ssl_request).returns(successful_partially_refunded_response)
 
     assert response = @gateway.refund(@refund_amount, 'ch_test_charge')
+    assert_success response
+
+    assert_equal 're_test_refund', response.authorization
+  end
+
+  def test_successful_refund_with_reason
+    @gateway.expects(:ssl_request).returns(successful_partially_refunded_response)
+
+    assert response = @gateway.refund(@refund_amount, 'ch_test_charge', reason: 'fraudulent')
     assert_success response
 
     assert_equal 're_test_refund', response.authorization
@@ -564,7 +630,7 @@ class StripeTest < Test::Unit::TestCase
 
   def test_refund_contains_charge_expand
     @gateway.expects(:ssl_request).with do |_, _, post, _|
-      post.include?('expand[]=charge')
+      post.include?('expand[0]=charge')
     end.returns(successful_partially_refunded_response)
 
     assert response = @gateway.refund(@refund_amount, 'ch_test_charge')
@@ -574,7 +640,8 @@ class StripeTest < Test::Unit::TestCase
   def test_refund_with_additional_expand_contains_two_expands
     @gateway.expects(:ssl_request).with do |_, _, post, _|
       parsed = CGI.parse(post)
-      parsed['expand[]'].sort == ['balance_transaction', 'charge'].sort
+      parsed['expand[0]'] = 'balance_transaction'
+      parsed['expand[1]'] = 'charge'
     end.returns(successful_partially_refunded_response)
 
     assert response = @gateway.refund(@refund_amount, 'ch_test_charge', expand: :balance_transaction)
@@ -584,7 +651,7 @@ class StripeTest < Test::Unit::TestCase
   def test_refund_with_expand_charge_only_sends_one_charge_expand
     @gateway.expects(:ssl_request).with do |_, _, post, _|
       parsed = CGI.parse(post)
-      parsed['expand[]'] == ['charge']
+      parsed['expand[0]'] == ['charge']
     end.returns(successful_partially_refunded_response)
 
     assert response = @gateway.refund(@refund_amount, 'ch_test_charge', expand: ['charge'])
@@ -674,7 +741,7 @@ class StripeTest < Test::Unit::TestCase
   end
 
   def test_successful_request_always_uses_live_mode_to_determine_test_request
-    @gateway.expects(:ssl_request).returns(successful_partially_refunded_response(:livemode => true))
+    @gateway.expects(:ssl_request).returns(successful_partially_refunded_response)
 
     assert response = @gateway.refund(@refund_amount, 'ch_test_charge')
     assert_success response
@@ -887,8 +954,8 @@ class StripeTest < Test::Unit::TestCase
 
   def test_client_data_submitted_with_purchase
     stub_comms(@gateway, :ssl_request) do
-      updated_options = @options.merge({:description => 'a test customer',:ip => '127.127.127.127', :user_agent => 'some browser', :order_id => '42', :email => 'foo@wonderfullyfakedomain.com', :receipt_email => 'receipt-receiver@wonderfullyfakedomain.com', :referrer =>'http://www.shopify.com'})
-      @gateway.purchase(@amount,@credit_card,updated_options)
+      updated_options = @options.merge({:description => 'a test customer', :ip => '127.127.127.127', :user_agent => 'some browser', :order_id => '42', :email => 'foo@wonderfullyfakedomain.com', :receipt_email => 'receipt-receiver@wonderfullyfakedomain.com', :referrer =>'http://www.shopify.com'})
+      @gateway.purchase(@amount, @credit_card, updated_options)
     end.check_request do |method, endpoint, data, headers|
       assert_match(/description=a\+test\+customer/, data)
       assert_match(/ip=127\.127\.127\.127/, data)
@@ -904,8 +971,8 @@ class StripeTest < Test::Unit::TestCase
 
   def test_client_data_submitted_with_purchase_without_email_or_order
     stub_comms(@gateway, :ssl_request) do
-      updated_options = @options.merge({:description => 'a test customer',:ip => '127.127.127.127', :user_agent => 'some browser', :referrer =>'http://www.shopify.com'})
-      @gateway.purchase(@amount,@credit_card,updated_options)
+      updated_options = @options.merge({:description => 'a test customer', :ip => '127.127.127.127', :user_agent => 'some browser', :referrer =>'http://www.shopify.com'})
+      @gateway.purchase(@amount, @credit_card, updated_options)
     end.check_request do |method, endpoint, data, headers|
       assert_match(/description=a\+test\+customer/, data)
       assert_match(/ip=127\.127\.127\.127/, data)
@@ -919,7 +986,7 @@ class StripeTest < Test::Unit::TestCase
   def test_client_data_submitted_with_metadata_in_options
     stub_comms(@gateway, :ssl_request) do
       updated_options = @options.merge({:metadata => {:this_is_a_random_key_name => 'with a random value', :i_made_up_this_key_too => 'canyoutell'}, :order_id => '42', :email => 'foo@wonderfullyfakedomain.com'})
-      @gateway.purchase(@amount,@credit_card,updated_options)
+      @gateway.purchase(@amount, @credit_card, updated_options)
     end.check_request do |method, endpoint, data, headers|
       assert_match(/metadata\[this_is_a_random_key_name\]=with\+a\+random\+value/, data)
       assert_match(/metadata\[i_made_up_this_key_too\]=canyoutell/, data)
@@ -1020,7 +1087,7 @@ class StripeTest < Test::Unit::TestCase
   end
 
   def test_metadata_header
-    @gateway.expects(:ssl_request).once.with {|method, url, post, headers|
+    @gateway.expects(:ssl_request).once.with { |method, url, post, headers|
       headers && headers['X-Stripe-Client-User-Metadata'] == {:ip => '1.1.1.1'}.to_json
     }.returns(successful_purchase_response)
 
@@ -1028,7 +1095,7 @@ class StripeTest < Test::Unit::TestCase
   end
 
   def test_optional_version_header
-    @gateway.expects(:ssl_request).once.with {|method, url, post, headers|
+    @gateway.expects(:ssl_request).once.with { |method, url, post, headers|
       headers && headers['Stripe-Version'] == '2013-10-29'
     }.returns(successful_purchase_response)
 
@@ -1036,7 +1103,7 @@ class StripeTest < Test::Unit::TestCase
   end
 
   def test_optional_idempotency_key_header
-    @gateway.expects(:ssl_request).once.with {|method, url, post, headers|
+    @gateway.expects(:ssl_request).once.with { |method, url, post, headers|
       headers && headers['Idempotency-Key'] == 'test123'
     }.returns(successful_purchase_response)
 
@@ -1045,7 +1112,7 @@ class StripeTest < Test::Unit::TestCase
   end
 
   def test_optional_idempotency_on_void
-    @gateway.expects(:ssl_request).once.with {|method, url, post, headers|
+    @gateway.expects(:ssl_request).once.with { |method, url, post, headers|
       headers && headers['Idempotency-Key'] == 'test123'
     }.returns(successful_purchase_response(true))
 
@@ -1068,7 +1135,7 @@ class StripeTest < Test::Unit::TestCase
 
   def test_initialize_gateway_with_version
     @gateway = StripeGateway.new(:login => 'login', :version => '2013-12-03')
-    @gateway.expects(:ssl_request).once.with {|method, url, post, headers|
+    @gateway.expects(:ssl_request).once.with { |method, url, post, headers|
       headers && headers['Stripe-Version'] == '2013-12-03'
     }.returns(successful_purchase_response)
 
@@ -1105,7 +1172,7 @@ class StripeTest < Test::Unit::TestCase
       @emv_credit_card.read_method = 'contactless'
       @gateway.purchase(@amount, @emv_credit_card, @options)
     end.check_request do |method, endpoint, data, headers|
-      data =~ /card\[read_method\]=contactless/
+      assert data =~ /card\[read_method\]=contactless/
     end.respond_with(successful_purchase_response)
   end
 
@@ -1114,7 +1181,7 @@ class StripeTest < Test::Unit::TestCase
       @emv_credit_card.read_method = 'contactless_magstripe'
       @gateway.purchase(@amount, @emv_credit_card, @options)
     end.check_request do |method, endpoint, data, headers|
-      data =~ /card\[read_method\]=contactless_magstripe_mode/
+      assert data =~ /card\[read_method\]=contactless_magstripe_mode/
     end.respond_with(successful_purchase_response)
   end
 
@@ -1122,7 +1189,7 @@ class StripeTest < Test::Unit::TestCase
     stub_comms(@gateway, :ssl_request) do
       @gateway.purchase(@amount, @emv_credit_card, @options)
     end.check_request do |method, endpoint, data, headers|
-      data !~ /card\[read_method\]=contactless/ && data !~ /card\[read_method\]=contactless_magstripe_mode/
+      assert data !~ /card\[read_method\]=contactless/ && data !~ /card\[read_method\]=contactless_magstripe_mode/
     end.respond_with(successful_purchase_response)
   end
 
@@ -1143,20 +1210,20 @@ class StripeTest < Test::Unit::TestCase
 
   def test_passing_expand_parameters
     @gateway.expects(:ssl_request).with do |method, url, post, headers|
-      post.include?('expand[]=balance_transaction')
+      post.include?('expand[0]=balance_transaction')
     end.returns(successful_authorization_response)
 
-    @options.merge!(:expand => :balance_transaction)
+    @options[:expand] = :balance_transaction
 
     @gateway.authorize(@amount, @credit_card, @options)
   end
 
   def test_passing_expand_parameters_as_array
     @gateway.expects(:ssl_request).with do |method, url, post, headers|
-      post.include?('expand[]=balance_transaction&expand[]=customer')
+      post.include?('expand[0]=balance_transaction&expand[1]=customer')
     end.returns(successful_authorization_response)
 
-    @options.merge!(:expand => [:balance_transaction, :customer])
+    @options[:expand] = [:balance_transaction, :customer]
 
     @gateway.authorize(@amount, @credit_card, @options)
   end
@@ -1174,7 +1241,7 @@ class StripeTest < Test::Unit::TestCase
       post.include?('recurring=true')
     end.returns(successful_authorization_response)
 
-    @options.merge!(eci: 'recurring')
+    @options[:eci] = 'recurring'
 
     @gateway.authorize(@amount, @credit_card, @options)
   end
@@ -1184,7 +1251,7 @@ class StripeTest < Test::Unit::TestCase
       !post.include?('recurring')
     end.returns(successful_authorization_response)
 
-    @options.merge!(eci: 'installment')
+    @options[:eci] = 'installment'
 
     @gateway.authorize(@amount, @credit_card, @options)
   end
@@ -1194,7 +1261,7 @@ class StripeTest < Test::Unit::TestCase
       post.include?('recurring=true')
     end.returns(successful_authorization_response)
 
-    @options.merge!(recurring: true)
+    @options[:recurring] = true
 
     @gateway.authorize(@amount, @credit_card, @options)
   end
@@ -1204,7 +1271,7 @@ class StripeTest < Test::Unit::TestCase
       !post.include?('recurring')
     end.returns(successful_authorization_response)
 
-    @options.merge!(recurring: false)
+    @options[:recurring] = false
 
     @gateway.authorize(@amount, @credit_card, @options)
   end
@@ -1344,15 +1411,49 @@ class StripeTest < Test::Unit::TestCase
     assert_success response
   end
 
-
   def test_passing_stripe_account_header
     @gateway.expects(:ssl_request).with do |method, url, post, headers|
       headers.include?('Stripe-Account')
     end.returns(successful_authorization_response)
 
-    @options.merge!(stripe_account: fixtures(:stripe_destination)[:stripe_user_id])
+    @options[:stripe_account] = fixtures(:stripe_destination)[:stripe_user_id]
 
     @gateway.purchase(@amount, @credit_card, @options)
+  end
+
+  def test_3ds_source_creation
+    @gateway.expects(:ssl_request).twice.returns(threeds_first_sources_created_response, threeds_second_sources_created_response)
+    card_source = @gateway.send(:create_source, @amount, @threeds_card, 'card', @options.merge(@threeds_options))
+    assert_success card_source
+    response = @gateway.send(:create_source, @amount, card_source.params['id'], 'three_d_secure', @options)
+    assert_equal 'source', response.params['object']
+    assert_equal 'pending', response.params['status']
+    assert_equal 'three_d_secure', response.params['type']
+    assert_equal false, response.params['three_d_secure']['authenticated']
+  end
+
+  def test_non3ds_card_source_creation
+    @gateway.expects(:ssl_request).returns(non_3ds_sources_create_response)
+    response = @gateway.send(:create_source, @amount, @non_3ds_card, 'card', @options.merge(@threeds_options))
+    assert_equal 'source', response.params['object']
+    assert_equal 'chargeable', response.params['status']
+    assert_equal 'card', response.params['type']
+    assert_equal 'not_supported', response.params['card']['three_d_secure']
+  end
+
+  def test_webhook_creation
+    @gateway.expects(:ssl_request).returns(webhook_event_creation_response)
+    response = @gateway.send(:create_webhook_endpoint, @options.merge(@threeds_options), ['source.chargeable'])
+    assert_includes response.params['enabled_events'], 'source.chargeable'
+    assert_equal @options.merge(@threeds_options)[:callback_url], response.params['url']
+  end
+
+  def test_webhook_deletion
+    @gateway.expects(:ssl_request).twice.returns(webhook_event_creation_response, webhook_event_deletion_response)
+    webhook = @gateway.send(:create_webhook_endpoint, @options.merge(@threeds_options), ['source.chargeable'])
+    response = @gateway.send(:delete_webhook_endpoint, @options.merge(:webhook_id => webhook.params['id']))
+    assert_equal response.params['id'], webhook.params['id']
+    assert_equal true, response.params['deleted']
   end
 
   def test_verify_good_credentials
@@ -1939,8 +2040,7 @@ class StripeTest < Test::Unit::TestCase
     RESPONSE
   end
 
-  def successful_partially_refunded_response(options = {})
-    options = {:livemode=>false}.merge!(options)
+  def successful_partially_refunded_response
     <<-RESPONSE
     {
       "id": "re_test_refund",
@@ -2356,5 +2456,192 @@ class StripeTest < Test::Unit::TestCase
       'type' => 'card',
       'used' => false
     }
+  end
+
+  def threeds_first_sources_created_response
+    <<-RESPONSE
+      {
+        "id": "src_1Dj5lqAWOtgoysogqA4CJX9Y",
+        "object": "source",
+        "amount": null,
+        "card": {
+          "exp_month": 9,
+          "exp_year": 2019,
+          "brand": "Visa",
+          "country": "US",
+          "cvc_check": "unchecked",
+          "fingerprint": "53W491Mwz0OMuEJr",
+          "funding": "credit",
+          "last4": "3063",
+          "three_d_secure": "required",
+          "name": null,
+          "address_line1_check": null,
+          "address_zip_check": null,
+          "tokenization_method": null,
+          "dynamic_last4": null
+        },
+        "client_secret": "src_client_secret_EBShsJorDXd6WD521kRIQlbP",
+        "created": 1545228694,
+        "currency": null,
+        "flow": "none",
+        "livemode": false,
+        "metadata": {
+        },
+        "owner": {
+          "address": null,
+          "email": null,
+          "name": null,
+          "phone": null,
+          "verified_address": null,
+          "verified_email": null,
+          "verified_name": null,
+          "verified_phone": null
+        },
+        "statement_descriptor": null,
+        "status": "chargeable",
+        "type": "card",
+        "usage": "reusable"
+      }
+    RESPONSE
+  end
+
+  def threeds_second_sources_created_response
+    <<-RESPONSE
+      {
+        "id": "src_1Dj5lrAWOtgoysog910mc8oS",
+        "object": "source",
+        "amount": 100,
+        "client_secret": "src_client_secret_EBShU4HfxQAw2bVGMxvRECO1",
+        "created": 1545228695,
+        "currency": "usd",
+        "flow": "redirect",
+        "livemode": false,
+        "metadata": {
+        },
+        "owner": {
+          "address": {
+            "city": null,
+            "country": null,
+            "line1": "",
+            "line2": null,
+            "postal_code": null,
+            "state": null
+          },
+          "email": null,
+          "name": null,
+          "phone": null,
+          "verified_address": null,
+          "verified_email": null,
+          "verified_name": null,
+          "verified_phone": null
+        },
+        "redirect": {
+          "failure_reason": null,
+          "return_url": "http://www.example.com/callback",
+          "status": "pending",
+          "url": "https://hooks.stripe.com/redirect/authenticate/src_1Dj5lrAWOtgoysog910mc8oS?client_secret=src_client_secret_EBShU4HfxQAw2bVGMxvRECO1"
+        },
+        "statement_descriptor": null,
+        "status": "pending",
+        "three_d_secure": {
+          "card": "src_1Dj5lqAWOtgoysogqA4CJX9Y",
+          "brand": "Visa",
+          "country": "US",
+          "cvc_check": "unchecked",
+          "exp_month": 9,
+          "exp_year": 2019,
+          "fingerprint": "53W491Mwz0OMuEJr",
+          "funding": "credit",
+          "last4": "3063",
+          "three_d_secure": "required",
+          "customer": null,
+          "authenticated": false,
+          "name": null,
+          "address_line1_check": null,
+          "address_zip_check": null,
+          "tokenization_method": null,
+          "dynamic_last4": null
+        },
+        "type": "three_d_secure",
+        "usage": "single_use"
+      }
+    RESPONSE
+  end
+
+  def non_3ds_sources_create_response
+    <<-RESPONSE
+      {
+        "id": "src_1Dj5yAAWOtgoysogPB6hwOa1",
+        "object": "source",
+        "amount": null,
+        "card": {
+          "exp_month": 9,
+          "exp_year": 2019,
+          "brand": "American Express",
+          "country": "US",
+          "cvc_check": "unchecked",
+          "fingerprint": "DjZpoV89lmOMsJLF",
+          "funding": "credit",
+          "last4": "0005",
+          "three_d_secure": "not_supported",
+          "name": null,
+          "address_line1_check": null,
+          "address_zip_check": null,
+          "tokenization_method": null,
+          "dynamic_last4": null
+        },
+        "client_secret": "src_client_secret_EBStgH6cBMsODApAChcj9Kkq",
+        "created": 1545229458,
+        "currency": null,
+        "flow": "none",
+        "livemode": false,
+        "metadata": {
+        },
+        "owner": {
+          "address": null,
+          "email": null,
+          "name": null,
+          "phone": null,
+          "verified_address": null,
+          "verified_email": null,
+          "verified_name": null,
+          "verified_phone": null
+        },
+        "statement_descriptor": null,
+        "status": "chargeable",
+        "type": "card",
+        "usage": "reusable"
+      }
+    RESPONSE
+  end
+
+  def webhook_event_creation_response
+    <<-RESPONSE
+      {
+        "id": "we_1Dj8GvAWOtgoysogAW1V5FFm",
+        "object": "webhook_endpoint",
+        "application": null,
+        "created": 1545238309,
+        "enabled_events": [
+          "source.chargeable",
+          "source.failed",
+          "source.canceled"
+        ],
+        "livemode": false,
+        "secret": "whsec_sJVAv7f1rddt1bNhouoDvxwQbZ8t0Pgn",
+        "status": "enabled",
+        "url": "http://www.example.com/callback"
+      }
+    RESPONSE
+  end
+
+  def webhook_event_deletion_response
+    <<-RESPONSE
+      {
+        "id": "we_1Dj8GvAWOtgoysogAW1V5FFm",
+        "object": "webhook_endpoint",
+        "deleted": true
+      }
+    RESPONSE
   end
 end

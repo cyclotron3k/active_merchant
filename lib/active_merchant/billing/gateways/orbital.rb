@@ -30,7 +30,7 @@ module ActiveMerchant #:nodoc:
     class OrbitalGateway < Gateway
       include Empty
 
-      API_VERSION = '7.1'
+      API_VERSION = '7.7'
 
       POST_HEADERS = {
         'MIME-Version' => '1.1',
@@ -187,6 +187,7 @@ module ActiveMerchant #:nodoc:
         requires!(options, :merchant_id)
         requires!(options, :login, :password) unless options[:ip_authentication]
         super
+        @options[:merchant_id] = @options[:merchant_id].to_s
       end
 
       # A – Authorization request
@@ -251,7 +252,6 @@ module ActiveMerchant #:nodoc:
         commit(order, :void, options[:trace_number])
       end
 
-
       # ==== Customer Profiles
       # :customer_ref_num should be set unless you're happy with Orbital providing one
       #
@@ -274,13 +274,13 @@ module ActiveMerchant #:nodoc:
       #   'MS'  - Manual Suspend
 
       def add_customer_profile(creditcard, options = {})
-        options.merge!(:customer_profile_action => CREATE)
+        options[:customer_profile_action] = CREATE
         order = build_customer_request_xml(creditcard, options)
         commit(order, :add_customer_profile)
       end
 
       def update_customer_profile(creditcard, options = {})
-        options.merge!(:customer_profile_action => UPDATE)
+        options[:customer_profile_action] = UPDATE
         order = build_customer_request_xml(creditcard, options)
         commit(order, :update_customer_profile)
       end
@@ -397,8 +397,8 @@ module ActiveMerchant #:nodoc:
             xml.tag! :AVSphoneNum, (address[:phone] ? address[:phone].scan(/\d/).join.to_s[0..13] : nil)
           end
 
-          xml.tag! :AVSname, ((creditcard && creditcard.name) ? creditcard.name[0..29] : nil)
-          xml.tag! :AVScountryCode, (avs_supported ? (byte_limit(format_address_field(address[:country]), 2)) : '')
+          xml.tag! :AVSname, (creditcard&.name ? creditcard.name[0..29] : nil)
+          xml.tag! :AVScountryCode, (avs_supported ? byte_limit(format_address_field(address[:country]), 2) : '')
 
           # Needs to come after AVScountryCode
           add_destination_address(xml, address) if avs_supported
@@ -506,6 +506,36 @@ module ActiveMerchant #:nodoc:
         end
       end
 
+      def add_stored_credentials(xml, parameters)
+        return unless parameters[:mit_stored_credential_ind] == 'Y' || parameters[:stored_credential] && !parameters[:stored_credential].values.all?(&:nil?)
+        if msg_type = get_msg_type(parameters)
+          xml.tag! :MITMsgType, msg_type
+        end
+        xml.tag! :MITStoredCredentialInd, 'Y'
+        if parameters[:mit_submitted_transaction_id]
+          xml.tag! :MITSubmittedTransactionID, parameters[:mit_submitted_transaction_id]
+        elsif parameters.dig(:stored_credential, :network_transaction_id) && parameters.dig(:stored_credential, :initiator) == 'merchant'
+          xml.tag! :MITSubmittedTransactionID, parameters[:stored_credential][:network_transaction_id]
+        end
+      end
+
+      def get_msg_type(parameters)
+        return parameters[:mit_msg_type] if parameters[:mit_msg_type]
+        return 'CSTO' if parameters[:stored_credential][:initial_transaction]
+        return unless parameters[:stored_credential][:initiator] && parameters[:stored_credential][:reason_type]
+        initiator = case parameters[:stored_credential][:initiator]
+        when 'customer' then 'C'
+        when 'merchant' then 'M'
+        end
+        reason = case parameters[:stored_credential][:reason_type]
+        when 'recurring' then 'REC'
+        when 'installment' then 'INS'
+        when 'unscheduled' then 'USE'
+        end
+
+        "#{initiator}#{reason}"
+      end
+
       def parse(body)
         response = {}
         xml = REXML::Document.new(body)
@@ -517,12 +547,12 @@ module ActiveMerchant #:nodoc:
           end
         end
 
-        response.delete_if { |k,_| SENSITIVE_FIELDS.include?(k) }
+        response.delete_if { |k, _| SENSITIVE_FIELDS.include?(k) }
       end
 
       def recurring_parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|e| recurring_parse_element(response, e) }
+          node.elements.each { |e| recurring_parse_element(response, e) }
         else
           response[node.name.underscore.to_sym] = node.text
         end
@@ -530,9 +560,11 @@ module ActiveMerchant #:nodoc:
 
       def commit(order, message_type, trace_number=nil)
         headers = POST_HEADERS.merge('Content-length' => order.size.to_s)
-        headers.merge!( 'Trace-number' => trace_number.to_s,
-                        'Merchant-Id' => @options[:merchant_id] ) if @options[:retry_logic] && trace_number
-        request = lambda{|url| parse(ssl_post(url, order, headers))}
+        if @options[:retry_logic] && trace_number
+          headers['Trace-number'] = trace_number.to_s
+          headers['Merchant-Id'] = @options[:merchant_id]
+        end
+        request = ->(url) { parse(ssl_post(url, order, headers)) }
 
         # Failover URL will be attempted in the event of a connection error
         response = begin
@@ -633,6 +665,7 @@ module ActiveMerchant #:nodoc:
             end
 
             add_level_2_purchase(xml, parameters)
+            add_stored_credentials(xml, parameters)
           end
         end
         xml.target!

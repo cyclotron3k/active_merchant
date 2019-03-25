@@ -14,7 +14,7 @@ class PayflowTest < Test::Unit::TestCase
     @amount = 100
     @credit_card = credit_card('4242424242424242')
     @options = { :billing_address => address.merge(:first_name => 'Longbob', :last_name => 'Longsen') }
-    @check = check( :name => 'Jim Smith' )
+    @check = check(:name => 'Jim Smith')
   end
 
   def test_successful_authorization
@@ -360,28 +360,15 @@ class PayflowTest < Test::Unit::TestCase
   end
 
   def test_recurring_profile_payment_history_inquiry_contains_the_proper_xml
-    request = @gateway.send( :build_recurring_request, :inquiry, nil, :profile_id => 'RT0000000009', :history => true)
+    request = @gateway.send(:build_recurring_request, :inquiry, nil, :profile_id => 'RT0000000009', :history => true)
     assert_match %r(<PaymentHistory>Y</PaymentHistory), request
-  end
-
-  def test_format_issue_number
-    xml = Builder::XmlMarkup.new
-    credit_card = credit_card('5641820000000005',
-      :brand         => 'switch',
-      :issue_number  => 1
-    )
-
-    @gateway.send(:add_credit_card, xml, credit_card)
-    doc = REXML::Document.new(xml.target!)
-    node = REXML::XPath.first(doc, '/Card/ExtData')
-    assert_equal '01', node.attributes['Value']
   end
 
   def test_add_credit_card_with_three_d_secure
     xml = Builder::XmlMarkup.new
-    credit_card = credit_card('5641820000000005',
-                              :brand => 'switch',
-                              :issue_number => 1
+    credit_card = credit_card(
+      '5641820000000005',
+      :brand => 'maestro'
     )
 
     @gateway.send(:add_credit_card, xml, credit_card, @options.merge(three_d_secure_option))
@@ -553,7 +540,7 @@ Conn close
   end
 
   def start_date_error_recurring_response
-      <<-XML
+    <<-XML
   <ResponseData>
     <Result>0</Result>
     <Message>Field format error: START or NEXTPAYMENTDATE older than last payment date</Message>
@@ -566,7 +553,7 @@ Conn close
   end
 
   def start_date_missing_recurring_response
-      <<-XML
+    <<-XML
   <ResponseData>
     <Result>0</Result>
     <Message>Field format error: START field missing</Message>

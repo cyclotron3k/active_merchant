@@ -7,9 +7,9 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://pal-test.adyen.com/pal/servlet/Payment/v18'
       self.live_url = 'https://pal-live.adyen.com/pal/servlet/Payment/v18'
 
-      self.supported_countries = ['AT','AU','BE','BG','BR','CH','CY','CZ','DE','DK','EE','ES','FI','FR','GB','GI','GR','HK','HU','IE','IS','IT','LI','LT','LU','LV','MC','MT','MX','NL','NO','PL','PT','RO','SE','SG','SK','SI','US']
+      self.supported_countries = ['AT', 'AU', 'BE', 'BG', 'BR', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GI', 'GR', 'HK', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MC', 'MT', 'MX', 'NL', 'NO', 'PL', 'PT', 'RO', 'SE', 'SG', 'SK', 'SI', 'US']
       self.default_currency = 'USD'
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :jcb, :dankort, :maestro,  :discover]
+      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :jcb, :dankort, :maestro,  :discover, :elo]
 
       self.money_format = :cents
 
@@ -33,9 +33,13 @@ module ActiveMerchant #:nodoc:
       end
 
       def purchase(money, payment, options={})
-        MultiResponse.run do |r|
-          r.process{authorize(money, payment, options)}
-          r.process{capture(money, r.authorization, options)}
+        if options[:execute_threed] || options[:threed_dynamic]
+          authorize(money, payment, options)
+        else
+          MultiResponse.run do |r|
+            r.process { authorize(money, payment, options) }
+            r.process { capture(money, r.authorization, capture_options(options)) }
+          end
         end
       end
 
@@ -48,27 +52,28 @@ module ActiveMerchant #:nodoc:
         add_shopper_interaction(post, payment, options)
         add_address(post, options)
         add_installments(post, options) if options[:installments]
-        commit('authorise', post)
+        add_3ds(post, options)
+        commit('authorise', post, options)
       end
 
       def capture(money, authorization, options={})
         post = init_post(options)
         add_invoice_for_modification(post, money, options)
         add_reference(post, authorization, options)
-        commit('capture', post)
+        commit('capture', post, options)
       end
 
       def refund(money, authorization, options={})
         post = init_post(options)
         add_invoice_for_modification(post, money, options)
         add_original_reference(post, authorization, options)
-        commit('refund', post)
+        commit('refund', post, options)
       end
 
       def void(authorization, options={})
         post = init_post(options)
         add_reference(post, authorization, options)
-        commit('cancel', post)
+        commit('cancel', post, options)
       end
 
       def store(credit_card, options={})
@@ -79,12 +84,13 @@ module ActiveMerchant #:nodoc:
         add_extra_data(post, credit_card, options)
         add_recurring_contract(post, options)
         add_address(post, options)
-        commit('authorise', post)
+        commit('authorise', post, options)
       end
 
       def verify(credit_card, options={})
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(0, credit_card, options) }
+          options[:idempotency_key] = nil
           r.process(:ignore_result) { void(r.authorization, options) }
         end
       end
@@ -103,6 +109,42 @@ module ActiveMerchant #:nodoc:
 
       private
 
+      AVS_MAPPING = {
+        '0'  => 'R',  # Unknown
+        '1'  => 'A',  # Address matches, postal code doesn't
+        '2'  => 'N',  # Neither postal code nor address match
+        '3'  => 'R',  # AVS unavailable
+        '4'  => 'E',  # AVS not supported for this card type
+        '5'  => 'U',  # No AVS data provided
+        '6'  => 'Z',  # Postal code matches, address doesn't match
+        '7'  => 'D',  # Both postal code and address match
+        '8'  => 'U',  # Address not checked, postal code unknown
+        '9'  => 'B',  # Address matches, postal code unknown
+        '10' => 'N',  # Address doesn't match, postal code unknown
+        '11' => 'U',  # Postal code not checked, address unknown
+        '12' => 'B',  # Address matches, postal code not checked
+        '13' => 'U',  # Address doesn't match, postal code not checked
+        '14' => 'P',  # Postal code matches, address unknown
+        '15' => 'P',  # Postal code matches, address not checked
+        '16' => 'N',  # Postal code doesn't match, address unknown
+        '17' => 'U',  # Postal code doesn't match, address not checked
+        '18' => 'I',  # Neither postal code nor address were checked
+        '20' => 'V',  # Name, address and postal code matches.
+        '23' => 'F',  # Postal code matches, name doesn't match.
+        '24' => 'H',  # Both postal code and address matches, name doesn't match.
+        '25' => 'T'  # Address matches, name doesn't match.
+      }
+
+      CVC_MAPPING = {
+        '0' => 'P', # Unknown
+        '1' => 'M', # Matches
+        '2' => 'N', # Does not match
+        '3' => 'P', # Not checked
+        '4' => 'S', # No CVC/CVV provided, but was required
+        '5' => 'U', # Issuer not certifed by CVC/CVV
+        '6' => 'P'  # No CVC/CVV provided
+      }
+
       NETWORK_TOKENIZATION_CARD_SOURCE = {
         'apple_pay' => 'applepay',
         'android_pay' => 'androidpay',
@@ -110,13 +152,29 @@ module ActiveMerchant #:nodoc:
       }
 
       def add_extra_data(post, payment, options)
+        post[:telephoneNumber] = options[:billing_address][:phone] if options.dig(:billing_address, :phone)
         post[:shopperEmail] = options[:shopper_email] if options[:shopper_email]
         post[:shopperIP] = options[:shopper_ip] if options[:shopper_ip]
         post[:shopperReference] = options[:shopper_reference] if options[:shopper_reference]
+        post[:shopperStatement] = options[:shopper_statement] if options[:shopper_statement]
         post[:fraudOffset] = options[:fraud_offset] if options[:fraud_offset]
-        post[:selectedBrand] = options[:selected_brand] || NETWORK_TOKENIZATION_CARD_SOURCE[payment.source.to_s] if payment.is_a?(NetworkTokenizationCreditCard)
+        post[:selectedBrand] = options[:selected_brand] if options[:selected_brand]
+        post[:selectedBrand] ||= NETWORK_TOKENIZATION_CARD_SOURCE[payment.source.to_s] if payment.is_a?(NetworkTokenizationCreditCard)
         post[:deliveryDate] = options[:delivery_date] if options[:delivery_date]
         post[:merchantOrderReference] = options[:merchant_order_reference] if options[:merchant_order_reference]
+        post[:additionalData] ||= {}
+        post[:additionalData][:overwriteBrand] = normalize(options[:overwrite_brand]) if options[:overwrite_brand]
+        post[:additionalData][:customRoutingFlag] = options[:custom_routing_flag] if options[:custom_routing_flag]
+        post[:additionalData]['paymentdatasource.type'] = NETWORK_TOKENIZATION_CARD_SOURCE[payment.source.to_s] if payment.is_a?(NetworkTokenizationCreditCard)
+        post[:deviceFingerprint] = options[:device_fingerprint] if options[:device_fingerprint]
+        add_risk_data(post, options)
+      end
+
+      def add_risk_data(post, options)
+        if (risk_data = options[:risk_data])
+          risk_data = Hash[risk_data.map { |k, v| ["riskdata.#{k}", v] }]
+          post[:additionalData].merge!(risk_data)
+        end
       end
 
       def add_shopper_interaction(post, payment, options={})
@@ -130,14 +188,14 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_address(post, options)
-        return unless post[:card] && post[:card].kind_of?(Hash)
+        return unless post[:card]&.kind_of?(Hash)
         if (address = options[:billing_address] || options[:address]) && address[:country]
           post[:card][:billingAddress] = {}
           post[:card][:billingAddress][:street] = address[:address1] || 'N/A'
           post[:card][:billingAddress][:houseNumberOrName] = address[:address2] || 'N/A'
           post[:card][:billingAddress][:postalCode] = address[:zip] if address[:zip]
           post[:card][:billingAddress][:city] = address[:city] || 'N/A'
-          post[:card][:billingAddress][:stateOrProvince] = address[:state] if address[:state]
+          post[:card][:billingAddress][:stateOrProvince] = address[:state] || 'N/A'
           post[:card][:billingAddress][:country] = address[:country] if address[:country]
         end
       end
@@ -148,6 +206,7 @@ module ActiveMerchant #:nodoc:
           currency: options[:currency] || currency(money)
         }
         post[:amount] = amount
+        post[:recurringProcessingModel] = options[:recurring_processing_model] if options[:recurring_processing_model]
       end
 
       def add_invoice_for_modification(post, money, options)
@@ -178,9 +237,15 @@ module ActiveMerchant #:nodoc:
           cvc: credit_card.verification_value
         }
 
-        card.delete_if{|k,v| v.blank? }
+        card.delete_if { |k, v| v.blank? }
+        card[:holderName] ||= 'Not Provided' if credit_card.is_a?(NetworkTokenizationCreditCard)
         requires!(card, :expiryMonth, :expiryYear, :holderName, :number)
         post[:card] = card
+      end
+
+      def capture_options(options)
+        return options.merge(idempotency_key: "#{options[:idempotency_key]}-cap") if options[:idempotency_key]
+        options
       end
 
       def add_reference(post, authorization, options = {})
@@ -219,20 +284,25 @@ module ActiveMerchant #:nodoc:
         }
       end
 
+      def add_3ds(post, options)
+        return unless options[:execute_threed] || options[:threed_dynamic]
+        post[:browserInfo] = { userAgent: options[:user_agent], acceptHeader: options[:accept_header] }
+        post[:additionalData] = { executeThreeD: 'true' } if options[:execute_threed]
+      end
+
       def parse(body)
         return {} if body.blank?
         JSON.parse(body)
       end
 
-      def commit(action, parameters)
+      def commit(action, parameters, options)
         begin
-          raw_response = ssl_post("#{url}/#{action.to_s}", post_data(action, parameters), request_headers)
+          raw_response = ssl_post("#{url}/#{action}", post_data(action, parameters), request_headers(options))
           response = parse(raw_response)
         rescue ResponseError => e
           raw_response = e.response.body
           response = parse(raw_response)
         end
-
         success = success_from(action, response)
         Response.new(
           success,
@@ -240,9 +310,18 @@ module ActiveMerchant #:nodoc:
           response,
           authorization: authorization_from(action, parameters, response),
           test: test?,
-          error_code: success ? nil : error_code_from(response)
+          error_code: success ? nil : error_code_from(response),
+          avs_result: AVSResult.new(:code => avs_code_from(response)),
+          cvv_result: CVVResult.new(cvv_result_from(response))
         )
+      end
 
+      def avs_code_from(response)
+        AVS_MAPPING[response['additionalData']['avsResult'][0..1].strip] if response.dig('additionalData', 'avsResult')
+      end
+
+      def cvv_result_from(response)
+        CVC_MAPPING[response['additionalData']['cvcResult'][0]] if response.dig('additionalData', 'cvcResult')
       end
 
       def url
@@ -259,16 +338,18 @@ module ActiveMerchant #:nodoc:
         Base64.strict_encode64("#{@username}:#{@password}")
       end
 
-      def request_headers
-        {
+      def request_headers(options)
+        headers = {
           'Content-Type' => 'application/json',
           'Authorization' => "Basic #{basic_auth}"
         }
+        headers['Idempotency-Key'] = options[:idempotency_key] if options[:idempotency_key]
+        headers
       end
 
       def success_from(action, response)
         case action.to_s
-        when 'authorise'
+        when 'authorise', 'authorise3d'
           ['Authorised', 'Received', 'RedirectShopper'].include?(response['resultCode'])
         when 'capture', 'refund', 'cancel'
           response['response'] == "[#{action}-received]"

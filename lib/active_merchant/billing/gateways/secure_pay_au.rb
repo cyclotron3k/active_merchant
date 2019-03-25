@@ -238,7 +238,6 @@ module ActiveMerchant #:nodoc:
 
       def commit_periodic(request)
         my_request = build_periodic_request(request)
-        #puts my_request
         response = parse(ssl_post(test? ? self.test_periodic_url : self.live_periodic_url, my_request))
 
         Response.new(success?(response), message_from(response), response,
@@ -277,7 +276,7 @@ module ActiveMerchant #:nodoc:
 
       def parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|element| parse_element(response, element) }
+          node.elements.each { |element| parse_element(response, element) }
         else
           response[node.name.underscore.to_sym] = node.text
         end

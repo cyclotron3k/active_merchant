@@ -38,7 +38,7 @@ class FirstdataE4Test < Test::Unit::TestCase
     assert response.test?
     assert_equal 'Transaction Normal - Approved', response.message
 
-    FirstdataE4Gateway::SENSITIVE_FIELDS.each{|f| assert !response.params.has_key?(f.to_s)}
+    FirstdataE4Gateway::SENSITIVE_FIELDS.each { |f| assert !response.params.has_key?(f.to_s) }
   end
 
   def test_successful_purchase_with_specified_currency
@@ -51,7 +51,7 @@ class FirstdataE4Test < Test::Unit::TestCase
     assert_equal 'Transaction Normal - Approved', response.message
     assert_equal 'GBP', response.params['currency']
 
-    FirstdataE4Gateway::SENSITIVE_FIELDS.each{|f| assert !response.params.has_key?(f.to_s)}
+    FirstdataE4Gateway::SENSITIVE_FIELDS.each { |f| assert !response.params.has_key?(f.to_s) }
   end
 
   def test_successful_purchase_with_token
@@ -64,7 +64,7 @@ class FirstdataE4Test < Test::Unit::TestCase
     options_with_specified_currency = @options.merge({currency: 'GBP'})
     @gateway.expects(:ssl_post).returns(successful_purchase_with_specified_currency_response)
     assert response = @gateway.purchase(@amount, '8938737759041111;visa;Longbob;Longsen;9;2014',
-                                        options_with_specified_currency)
+      options_with_specified_currency)
     assert_success response
     assert_equal 'GBP', response.params['currency']
   end
@@ -225,7 +225,7 @@ class FirstdataE4Test < Test::Unit::TestCase
         brand: 'american_express',
         transaction_id: '123',
         eci: '05',
-        payment_cryptogram: 'whatever_the_cryptogram_of_at_least_20_characters_is',
+        payment_cryptogram: 'whatever_the_cryptogram_of_at_least_20_characters_is'
       )
 
       @gateway.purchase(@amount, credit_card, @options)
@@ -244,7 +244,7 @@ class FirstdataE4Test < Test::Unit::TestCase
         brand: 'discover',
         transaction_id: '123',
         eci: '05',
-        payment_cryptogram: 'whatever_the_cryptogram_is',
+        payment_cryptogram: 'whatever_the_cryptogram_is'
       )
 
       @gateway.purchase(@amount, credit_card, @options)
@@ -264,7 +264,7 @@ class FirstdataE4Test < Test::Unit::TestCase
           brand: brand,
           transaction_id: '123',
           eci: '05',
-          payment_cryptogram: 'whatever_the_cryptogram_is',
+          payment_cryptogram: 'whatever_the_cryptogram_is'
         )
 
         @gateway.purchase(@amount, credit_card, @options)
@@ -481,6 +481,7 @@ issuer pursuant to cardholder agreement.
   </TransactionResult>
     RESPONSE
   end
+
   def successful_purchase_with_specified_currency_response
     <<-RESPONSE
   <?xml version="1.0" encoding="UTF-8"?>
@@ -569,6 +570,7 @@ issuer pursuant to cardholder agreement.
   </TransactionResult>
     RESPONSE
   end
+
   def successful_purchase_response_without_transarmor
     <<-RESPONSE
   <?xml version="1.0" encoding="UTF-8"?>
@@ -657,6 +659,7 @@ issuer pursuant to cardholder agreement.
   </TransactionResult>
     RESPONSE
   end
+
   def successful_refund_response
     <<-RESPONSE
   <?xml version="1.0" encoding="UTF-8"?>
@@ -1037,7 +1040,7 @@ response: !ruby/object:Net::HTTPBadRequest
   read: true
   socket:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPBadRequest', 'ActiveMerchant::ResponseError'])
   end
 
   def bad_credentials_response
@@ -1074,7 +1077,7 @@ response: !ruby/object:Net::HTTPUnauthorized
   http_version: '1.1'
   socket:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPUnauthorized', 'ActiveMerchant::ResponseError'])
   end
 
   def successful_void_response

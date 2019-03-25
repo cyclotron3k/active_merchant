@@ -175,15 +175,13 @@ module ActiveMerchant #:nodoc:
       end
 
       def response_error(raw_response)
-        begin
-          parse(raw_response)
-        rescue JSON::ParserError
-          json_error(raw_response)
-        end
+        parse(raw_response)
+      rescue JSON::ParserError
+        json_error(raw_response)
       end
 
       def json_error(raw_response)
-		  msg = 'Resposta inválida retornada pela API do Pagar.me. Por favor entre em contato com suporte@pagar.me se você continuar recebendo essa mensagem.'
+        msg = 'Resposta inválida retornada pela API do Pagar.me. Por favor entre em contato com suporte@pagar.me se você continuar recebendo essa mensagem.'
         msg += "  (A resposta retornada pela API foi #{raw_response.inspect})"
         {
           'errors' => [{
@@ -232,7 +230,7 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def test?()
+      def test?
         @api_key.start_with?('ak_test')
       end
 

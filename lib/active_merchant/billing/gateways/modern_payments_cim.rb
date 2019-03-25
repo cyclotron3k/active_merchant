@@ -66,6 +66,7 @@ module ActiveMerchant #:nodoc:
       end
 
       private
+
       def add_payment_details(post, options)
         post[:pmtDate] = (options[:payment_date] || Time.now.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         post[:pmtType] = PAYMENT_METHOD[options[:payment_method] || :credit_card]
@@ -121,7 +122,7 @@ module ActiveMerchant #:nodoc:
             xml.tag! action, { 'xmlns' => xmlns(action) } do
               xml.tag! 'clientId', @options[:login]
               xml.tag! 'clientCode', @options[:password]
-              params.each {|key, value| xml.tag! key, value }
+              params.each { |key, value| xml.tag! key, value }
             end
           end
         end
@@ -146,9 +147,9 @@ module ActiveMerchant #:nodoc:
 
       def commit(action, params)
         data = ssl_post(url(action), build_request(action, params),
-                 { 'Content-Type' =>'text/xml; charset=utf-8',
-                   'SOAPAction' => "#{xmlns(action)}#{action}" }
-                )
+          { 'Content-Type' =>'text/xml; charset=utf-8',
+            'SOAPAction' => "#{xmlns(action)}#{action}" }
+        )
 
         response = parse(action, data)
         Response.new(successful?(action, response), message_from(action, response), response,
@@ -206,7 +207,7 @@ module ActiveMerchant #:nodoc:
 
       def parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|e| parse_element(response, e) }
+          node.elements.each { |e| parse_element(response, e) }
         else
           response[node.name.underscore.to_sym] = node.text.to_s.strip
         end
@@ -214,4 +215,3 @@ module ActiveMerchant #:nodoc:
     end
   end
 end
-

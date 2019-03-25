@@ -141,8 +141,8 @@ module ActiveMerchant #:nodoc:
       def unstore(authorization, options = {})
         account_id, profile_id = authorization.split('|')
         commit('profile', {},
-               verb: :delete,
-               path: "/#{profile_id}/#{account_id}/#{@options[:merchant_id]}")
+          verb: :delete,
+          path: "/#{profile_id}/#{account_id}/#{@options[:merchant_id]}")
       end
 
       def supports_scrubbing?
@@ -150,12 +150,12 @@ module ActiveMerchant #:nodoc:
       end
 
       def scrub(transcript)
-        transcript
-          .gsub(%r((Authorization: Basic )\w+), '\1[FILTERED]')
-          .gsub(%r(("cvv2\\":\\")\d*), '\1[FILTERED]')
-          .gsub(%r(("merchid\\":\\")\d*), '\1[FILTERED]')
-          .gsub(%r((&?"account\\":\\")\d*), '\1[FILTERED]')
-          .gsub(%r((&?"token\\":\\")\d*), '\1[FILTERED]')
+        transcript.
+          gsub(%r((Authorization: Basic )\w+), '\1[FILTERED]').
+          gsub(%r(("cvv2\\":\\")\d*), '\1[FILTERED]').
+          gsub(%r(("merchid\\":\\")\d*), '\1[FILTERED]').
+          gsub(%r((&?"account\\":\\")\d*), '\1[FILTERED]').
+          gsub(%r((&?"token\\":\\")\d*), '\1[FILTERED]')
       end
 
       private
@@ -281,6 +281,9 @@ module ActiveMerchant #:nodoc:
           test: test?,
           error_code: error_code_from(response)
         )
+      rescue ResponseError => e
+        return Response.new(false, 'Unable to authenticate.  Please check your credentials.', {}, :test => test?) if e.response.code == '401'
+        raise
       end
 
       def success_from(response)

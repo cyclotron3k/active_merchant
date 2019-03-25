@@ -16,3 +16,19 @@ AllCops:
     - "vendor/**/*"
   ExtraDetails: false
   TargetRubyVersion: 2.3
+
+# Active Merchant gateways are not amenable to length restrictions
+Metrics/ClassLength:
+  Enabled: false
+
+Metrics/ModuleLength:
+  Enabled: false
+
+Layout/AlignParameters:
+  EnforcedStyle: with_fixed_indentation
+
+Layout/DotPosition:
+  EnforcedStyle: trailing
+
+Layout/CaseIndentation:
+  EnforcedStyle: end

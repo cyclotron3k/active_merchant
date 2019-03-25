@@ -45,12 +45,12 @@ module ActiveMerchant #:nodoc:
 
         MultiResponse.run do |r|
           identifier = if(payment_method.respond_to?(:number))
-            r.process{store(payment_method, options)}
-            r.authorization
-          else
-            payment_method
+                         r.process { store(payment_method, options) }
+                         r.authorization
+                       else
+                         payment_method
           end
-          r.process{commit('debits', "cards/#{card_identifier_from(identifier)}/debits", post)}
+          r.process { commit('debits', "cards/#{card_identifier_from(identifier)}/debits", post) }
         end
       end
 
@@ -62,12 +62,12 @@ module ActiveMerchant #:nodoc:
 
         MultiResponse.run do |r|
           identifier = if(payment_method.respond_to?(:number))
-            r.process{store(payment_method, options)}
-            r.authorization
-          else
-            payment_method
+                         r.process { store(payment_method, options) }
+                         r.authorization
+                       else
+                         payment_method
           end
-          r.process{commit('card_holds', "cards/#{card_identifier_from(identifier)}/card_holds", post)}
+          r.process { commit('card_holds', "cards/#{card_identifier_from(identifier)}/card_holds", post) }
         end
       end
 
@@ -117,8 +117,8 @@ module ActiveMerchant #:nodoc:
         case identifier
         when %r{\|}
           uri = identifier.
-            split('|').
-            detect{|part| part.size > 0}
+                split('|').
+                detect { |part| part.size > 0 }
           uri.split('/')[2]
         when %r{\/}
           identifier.split('/')[5]
@@ -172,7 +172,7 @@ module ActiveMerchant #:nodoc:
           message_from(raw_response),
           raw_response,
           authorization: authorization_from(entity_name, raw_response),
-          test: test?,
+          test: test?
         )
       end
 
@@ -236,12 +236,12 @@ module ActiveMerchant #:nodoc:
 
       def headers
         @@ua ||= JSON.dump(
-           bindings_version: ActiveMerchant::VERSION,
-           lang: 'ruby',
-           lang_version: "#{RUBY_VERSION} p#{RUBY_PATCHLEVEL} (#{RUBY_RELEASE_DATE})",
-           lib_version: BalancedGateway::VERSION,
-           platform: RUBY_PLATFORM,
-           publisher: 'active_merchant'
+          bindings_version: ActiveMerchant::VERSION,
+          lang: 'ruby',
+          lang_version: "#{RUBY_VERSION} p#{RUBY_PATCHLEVEL} (#{RUBY_RELEASE_DATE})",
+          lib_version: BalancedGateway::VERSION,
+          platform: RUBY_PLATFORM,
+          publisher: 'active_merchant'
         )
 
         {

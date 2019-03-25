@@ -1,4 +1,3 @@
-#!/usr/bin/env ruby
 $:.unshift File.expand_path('../../lib', __FILE__)
 
 require 'bundler/setup'
@@ -127,11 +126,12 @@ module ActiveMerchant
     end
 
     private
+
     def clean_backtrace(&block)
       yield
     rescue AssertionClass => e
       path = File.expand_path(__FILE__)
-      raise AssertionClass, e.message, e.backtrace.reject { |line| File.expand_path(line) =~ /#{path}/ }
+      raise AssertionClass, e.message, (e.backtrace.reject { |line| File.expand_path(line) =~ /#{path}/ })
     end
   end
 
@@ -141,6 +141,7 @@ module ActiveMerchant
     DEFAULT_CREDENTIALS = File.join(File.dirname(__FILE__), 'fixtures.yml') unless defined?(DEFAULT_CREDENTIALS)
 
     private
+
     def default_expiration_date
       @default_expiration_date ||= Date.new((Time.now.year + 1), 9, 30)
     end
@@ -261,7 +262,7 @@ module ActiveMerchant
     def load_fixtures
       [DEFAULT_CREDENTIALS, LOCAL_CREDENTIALS].inject({}) do |credentials, file_name|
         if File.exist?(file_name)
-          yaml_data = YAML.load(File.read(file_name))
+          yaml_data = YAML.safe_load(File.read(file_name), [], [], true)
           credentials.merge!(symbolize_keys(yaml_data))
         end
         credentials
@@ -272,7 +273,7 @@ module ActiveMerchant
       return unless hash.is_a?(Hash)
 
       hash.symbolize_keys!
-      hash.each{|k,v| symbolize_keys(v)}
+      hash.each { |k, v| symbolize_keys(v) }
     end
   end
 end
@@ -325,11 +326,11 @@ module ActionViewHelperTestHelper
   end
 
   protected
+
   def protect_against_forgery?
     false
   end
 end
-
 
 class MockResponse
   attr_reader   :code, :body, :message

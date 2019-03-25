@@ -6,7 +6,7 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://process.sandbox.safecharge.com/service.asmx/Process'
       self.live_url = 'https://process.safecharge.com/service.asmx/Process'
 
-      self.supported_countries = ['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'GR', 'ES', 'FI', 'FR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'SE', 'SE', 'SI', 'SK', 'GB', 'US']
+      self.supported_countries = ['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'GR', 'ES', 'FI', 'FR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK', 'GB', 'US']
       self.default_currency = 'USD'
       self.supported_cardtypes = [:visa, :master]
 
@@ -43,7 +43,7 @@ module ActiveMerchant #:nodoc:
       def capture(money, authorization, options={})
         post = {}
         auth, transaction_id, token, exp_month, exp_year, _, original_currency = authorization.split('|')
-        add_transaction_data('Settle', post, money, (options.merge!({currency: original_currency})))
+        add_transaction_data('Settle', post, money, options.merge!({currency: original_currency}))
         post[:sg_AuthCode] = auth
         post[:sg_TransactionID] = transaction_id
         post[:sg_CCToken] = token
@@ -56,7 +56,7 @@ module ActiveMerchant #:nodoc:
       def refund(money, authorization, options={})
         post = {}
         auth, transaction_id, token, exp_month, exp_year, _, original_currency = authorization.split('|')
-        add_transaction_data('Credit', post, money, (options.merge!({currency: original_currency})))
+        add_transaction_data('Credit', post, money, options.merge!({currency: original_currency}))
         post[:sg_CreditType] = 2
         post[:sg_AuthCode] = auth
         post[:sg_TransactionID] = transaction_id
@@ -79,7 +79,7 @@ module ActiveMerchant #:nodoc:
       def void(authorization, options={})
         post = {}
         auth, transaction_id, token, exp_month, exp_year, original_amount, original_currency = authorization.split('|')
-        add_transaction_data('Void', post, (original_amount.to_f * 100), (options.merge!({currency: original_currency})))
+        add_transaction_data('Void', post, (original_amount.to_f * 100), options.merge!({currency: original_currency}))
         post[:sg_CreditType] = 2
         post[:sg_AuthCode] = auth
         post[:sg_TransactionID] = transaction_id
@@ -181,7 +181,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def element_name_to_symbol(response, childnode)
-        name = "#{childnode.name.downcase}"
+        name = childnode.name.downcase
         response[name.to_sym] = childnode.text
       end
 
@@ -252,8 +252,8 @@ module ActiveMerchant #:nodoc:
 
       def underscore(camel_cased_word)
         camel_cased_word.to_s.gsub(/::/, '/').
-          gsub(/([A-Z]+)([A-Z][a-z])/,'\1_\2').
-          gsub(/([a-z\d])([A-Z])/,'\1_\2').
+          gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').
+          gsub(/([a-z\d])([A-Z])/, '\1_\2').
           tr('-', '_').
           downcase
       end

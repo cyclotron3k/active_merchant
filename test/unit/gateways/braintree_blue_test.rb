@@ -7,10 +7,11 @@ class BraintreeBlueTest < Test::Unit::TestCase
     @gateway = BraintreeBlueGateway.new(
       :merchant_id => 'test',
       :public_key => 'test',
-      :private_key => 'test'
+      :private_key => 'test',
+      :test => true
     )
 
-    @internal_gateway = @gateway.instance_variable_get( :@braintree_gateway )
+    @internal_gateway = @gateway.instance_variable_get(:@braintree_gateway)
   end
 
   def teardown
@@ -63,13 +64,53 @@ class BraintreeBlueTest < Test::Unit::TestCase
     assert_success response
   end
 
+  def test_authorize_transaction
+    Braintree::TransactionGateway.any_instance.expects(:sale).
+      returns(braintree_result)
+
+    response = @gateway.authorize(100, credit_card('41111111111111111111'))
+
+    assert_equal 'transaction_id', response.authorization
+    assert_equal true, response.test
+  end
+
+  def test_purchase_transaction
+    Braintree::TransactionGateway.any_instance.expects(:sale).
+      returns(braintree_result)
+
+    response = @gateway.purchase(100, credit_card('41111111111111111111'))
+
+    assert_equal 'transaction_id', response.authorization
+    assert_equal true, response.test
+  end
+
+  def test_capture_transaction
+    Braintree::TransactionGateway.any_instance.expects(:submit_for_settlement).
+      returns(braintree_result(:id => 'capture_transaction_id'))
+
+    response = @gateway.capture(100, 'transaction_id')
+
+    assert_equal 'capture_transaction_id', response.authorization
+    assert_equal true, response.test
+  end
+
+  def test_refund_transaction
+    Braintree::TransactionGateway.any_instance.expects(:refund).
+      returns(braintree_result(:id => 'refund_transaction_id'))
+
+    response = @gateway.refund(1000, 'transaction_id')
+    assert_equal 'refund_transaction_id', response.authorization
+    assert_equal true, response.test
+  end
+
   def test_void_transaction
     Braintree::TransactionGateway.any_instance.expects(:void).
       with('transaction_id').
       returns(braintree_result(:id => 'void_transaction_id'))
 
-    response = @gateway.void('transaction_id', :test => true)
+    response = @gateway.void('transaction_id')
     assert_equal 'void_transaction_id', response.authorization
+    assert_equal true, response.test
   end
 
   def test_verify_good_credentials
@@ -310,6 +351,58 @@ class BraintreeBlueTest < Test::Unit::TestCase
     @gateway.store(credit_card('41111111111111111111'), :billing_address => billing_address)
   end
 
+  def test_store_with_phone_only_billing_address_option
+    customer_attributes = {
+      :credit_cards => [stub_everything],
+      :email => 'email',
+      :first_name => 'John',
+      :last_name => 'Smith',
+      :phone => '123-456-7890'
+    }
+    billing_address = {
+      :phone => '123-456-7890'
+    }
+    customer = stub(customer_attributes)
+    customer.stubs(:id).returns('123')
+    result = Braintree::SuccessfulResult.new(:customer => customer)
+    Braintree::CustomerGateway.any_instance.expects(:create).with do |params|
+      assert_nil params[:credit_card][:billing_address]
+      params
+    end.returns(result)
+
+    @gateway.store(credit_card('41111111111111111111'), :billing_address => billing_address)
+  end
+
+  def test_store_with_nil_billing_address_options
+    customer_attributes = {
+      :credit_cards => [stub_everything],
+      :email => 'email',
+      :first_name => 'John',
+      :last_name => 'Smith',
+      :phone => '123-456-7890'
+    }
+    billing_address = {
+      :name => 'John Smith',
+      :phone => '123-456-7890',
+      :company => nil,
+      :address1 => nil,
+      :address2 => '',
+      :city => nil,
+      :state => nil,
+      :zip => nil,
+      :country_name => nil
+    }
+    customer = stub(customer_attributes)
+    customer.stubs(:id).returns('123')
+    result = Braintree::SuccessfulResult.new(:customer => customer)
+    Braintree::CustomerGateway.any_instance.expects(:create).with do |params|
+      assert_nil params[:credit_card][:billing_address]
+      params
+    end.returns(result)
+
+    @gateway.store(credit_card('41111111111111111111'), :billing_address => billing_address)
+  end
+
   def test_store_with_credit_card_token
     customer = stub(
       :email => 'email',
@@ -374,6 +467,42 @@ class BraintreeBlueTest < Test::Unit::TestCase
     end.returns(result)
 
     response = @gateway.store(credit_card('41111111111111111111'), customer: 'customerid')
+    assert_success response
+    assert_nil response.params['braintree_customer']
+    assert_equal 'customerid', response.params['customer_vault_id']
+    assert_equal 'cctoken', response.params['credit_card_token']
+  end
+
+  def test_store_with_existing_customer_id_and_nil_billing_address_options
+    credit_card = stub(
+      customer_id: 'customerid',
+      token: 'cctoken'
+    )
+    options = {
+      :customer => 'customerid',
+      :billing_address => {
+        :name => 'John Smith',
+        :phone => '123-456-7890',
+        :company => nil,
+        :address1 => nil,
+        :address2 => nil,
+        :city => nil,
+        :state => nil,
+        :zip => nil,
+        :country_name => nil
+      }
+    }
+
+    result = Braintree::SuccessfulResult.new(credit_card: credit_card)
+    Braintree::CustomerGateway.any_instance.expects(:find).with('customerid')
+    Braintree::CreditCardGateway.any_instance.expects(:create).with do |params|
+      assert_equal 'customerid', params[:customer_id]
+      assert_equal '41111111111111111111', params[:number]
+      assert_equal 'Longbob Longsen', params[:cardholder_name]
+      params
+    end.returns(result)
+
+    response = @gateway.store(credit_card('41111111111111111111'), options)
     assert_success response
     assert_nil response.params['braintree_customer']
     assert_equal 'customerid', response.params['customer_vault_id']
@@ -447,7 +576,8 @@ class BraintreeBlueTest < Test::Unit::TestCase
           :locality => 'Chicago',
           :region => 'Illinois',
           :postal_code => '60622',
-          :country_code_alpha2 => 'US'
+          :country_code_alpha2 => 'US',
+          :country_code_alpha3 => 'USA'
         },
         :options => {}
       }
@@ -521,8 +651,8 @@ class BraintreeBlueTest < Test::Unit::TestCase
         cavv: 'cavv',
         eci_flag: 'eci',
         xid: 'xid',
-    })).
-   returns(braintree_result)
+      })).
+      returns(braintree_result)
 
     @gateway.purchase(100, credit_card('41111111111111111111'), three_d_secure: {cavv: 'cavv', eci: 'eci', xid: 'xid'})
   end
@@ -546,6 +676,14 @@ class BraintreeBlueTest < Test::Unit::TestCase
       returns(braintree_result)
 
     @gateway.purchase(100, credit_card('41111111111111111111'))
+  end
+
+  def test_passes_transaction_source
+    Braintree::TransactionGateway.any_instance.expects(:sale).with do |params|
+      (params[:transaction_source] == 'recurring')
+      (params[:recurring] == nil)
+    end.returns(braintree_result)
+    @gateway.purchase(100, credit_card('41111111111111111111'), :transaction_source => 'recurring', :recurring => true)
   end
 
   def test_configured_logger_has_a_default
@@ -597,12 +735,12 @@ class BraintreeBlueTest < Test::Unit::TestCase
   end
 
   def test_solution_id_is_added_to_create_transaction_parameters
-    assert_nil @gateway.send(:create_transaction_parameters, 100, credit_card('41111111111111111111'),{})[:channel]
+    assert_nil @gateway.send(:create_transaction_parameters, 100, credit_card('41111111111111111111'), {})[:channel]
     ActiveMerchant::Billing::BraintreeBlueGateway.application_id = 'ABC123'
-    assert_equal @gateway.send(:create_transaction_parameters, 100, credit_card('41111111111111111111'),{})[:channel], 'ABC123'
+    assert_equal @gateway.send(:create_transaction_parameters, 100, credit_card('41111111111111111111'), {})[:channel], 'ABC123'
 
     gateway = BraintreeBlueGateway.new(:merchant_id => 'test', :public_key => 'test', :private_key => 'test', channel: 'overidden-channel')
-    assert_equal gateway.send(:create_transaction_parameters, 100, credit_card('41111111111111111111'),{})[:channel], 'overidden-channel'
+    assert_equal gateway.send(:create_transaction_parameters, 100, credit_card('41111111111111111111'), {})[:channel], 'overidden-channel'
   ensure
     ActiveMerchant::Billing::BraintreeBlueGateway.application_id = nil
   end
@@ -614,6 +752,21 @@ class BraintreeBlueTest < Test::Unit::TestCase
       (params[:descriptor][:url] == 'wow.com')
     end.returns(braintree_result)
     @gateway.purchase(100, credit_card('41111111111111111111'), descriptor_name: 'wow*productname', descriptor_phone: '4443331112', descriptor_url: 'wow.com')
+  end
+
+  def test_successful_purchase_with_device_data
+    Braintree::TransactionGateway.any_instance.expects(:sale).with do |params|
+      (params[:device_data] == 'device data string')
+    end.returns(braintree_result({risk_data: {id: 123456, decision: 'Decline', device_data_captured: true, fraud_service_provider: 'kount'}}))
+
+    response = @gateway.purchase(100, credit_card('41111111111111111111'), device_data: 'device data string')
+
+    assert transaction = response.params['braintree_transaction']
+    assert transaction['risk_data']
+    assert_equal 123456, transaction['risk_data']['id']
+    assert_equal 'Decline', transaction['risk_data']['decision']
+    assert_equal true, transaction['risk_data']['device_data_captured']
+    assert_equal 'kount', transaction['risk_data']['fraud_service_provider']
   end
 
   def test_apple_pay_card
@@ -674,6 +827,40 @@ class BraintreeBlueTest < Test::Unit::TestCase
       :eci                => '05',
       :payment_cryptogram => '111111111100cryptogram',
       :source             => :android_pay,
+      :transaction_id     => '1234567890'
+    )
+
+    response = @gateway.authorize(100, credit_card, :test => true, :order_id => '1')
+    assert_equal 'transaction_id', response.authorization
+  end
+
+  def test_google_pay_card
+    Braintree::TransactionGateway.any_instance.expects(:sale).
+      with(
+        :amount => '1.00',
+        :order_id => '1',
+        :customer => {:id => nil, :email => nil, :phone => nil,
+                      :first_name => 'Longbob', :last_name => 'Longsen'},
+        :options => {:store_in_vault => false, :submit_for_settlement => nil, :hold_in_escrow => nil},
+        :custom_fields => nil,
+        :android_pay_card => {
+          :number => '4111111111111111',
+          :expiration_month => '09',
+          :expiration_year => (Time.now.year + 1).to_s,
+          :cryptogram => '111111111100cryptogram',
+          :google_transaction_id => '1234567890',
+          :source_card_type => 'visa',
+          :source_card_last_four => '1111',
+          :eci_indicator => '05'
+        }
+      ).
+      returns(braintree_result(:id => 'transaction_id'))
+
+    credit_card = network_tokenization_credit_card('4111111111111111',
+      :brand              => 'visa',
+      :eci                => '05',
+      :payment_cryptogram => '111111111100cryptogram',
+      :source             => :google_pay,
       :transaction_id     => '1234567890'
     )
 

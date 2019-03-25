@@ -67,7 +67,6 @@ class NetworkConnectionRetriesTest < Test::Unit::TestCase
     end
   end
 
-
   def test_invalid_response_error
     assert_raises(ActiveMerchant::InvalidResponseError) do
       retry_exceptions do
@@ -133,9 +132,12 @@ class NetworkConnectionRetriesTest < Test::Unit::TestCase
   end
 
   def test_mixture_of_failures_with_retry_safe_enabled
-    @requester.expects(:post).times(3).raises(Errno::ECONNRESET).
-                                       raises(Errno::ECONNREFUSED).
-                                       raises(EOFError)
+    @requester.
+      expects(:post).
+      times(3).
+      raises(Errno::ECONNRESET).
+      raises(Errno::ECONNREFUSED).
+      raises(EOFError)
 
     assert_raises(ActiveMerchant::ConnectionError) do
       retry_exceptions :retry_safe => true do

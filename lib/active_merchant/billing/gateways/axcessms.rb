@@ -8,7 +8,7 @@ module ActiveMerchant #:nodoc:
                                     GI GR HR HU IE IL IM IS IT LI LT LU LV MC MT MX NL
                                     NO PL PT RO RU SE SI SK TR US VA)
 
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro, :solo]
+      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro]
 
       self.homepage_url = 'http://www.axcessms.com/'
       self.display_name = 'Axcess MS'
@@ -94,11 +94,11 @@ module ActiveMerchant #:nodoc:
 
       def parse_element(response, node)
         if node.has_attributes?
-          node.attributes.each{|name, value| response["#{node.name}_#{name}".underscore.to_sym] = value }
+          node.attributes.each { |name, value| response["#{node.name}_#{name}".underscore.to_sym] = value }
         end
 
         if node.has_elements?
-          node.elements.each{|element| parse_element(response, element) }
+          node.elements.each { |element| parse_element(response, element) }
         else
           response[node.name.underscore.to_sym] = node.text
         end

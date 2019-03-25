@@ -86,6 +86,19 @@ class RemoteNmiTest < Test::Unit::TestCase
     assert_equal 'DECLINE', response.message
   end
 
+  def test_successful_purchase_with_additional_options
+    options = @options.merge({
+      customer_id: '234',
+      vendor_id: '456',
+      recurring: true,
+    })
+    assert response = @gateway.purchase(@amount, @credit_card, options)
+    assert_success response
+    assert response.test?
+    assert_equal 'Succeeded', response.message
+    assert response.authorization
+  end
+
   def test_successful_authorization
     assert response = @gateway.authorize(@amount, @credit_card, @options)
     assert_success response
@@ -160,7 +173,6 @@ class RemoteNmiTest < Test::Unit::TestCase
     assert_equal 'Succeeded', response.message
   end
 
-
   def test_successful_credit
     response = @gateway.credit(@amount, @credit_card, @options)
     assert_success response
@@ -190,39 +202,38 @@ class RemoteNmiTest < Test::Unit::TestCase
     response = @gateway.store(@credit_card, @options)
     assert_success response
     assert_equal 'Succeeded', response.message
-    assert response.params['customer_vault_id']
+    assert response.authorization.include?(response.params['customer_vault_id'])
   end
 
   def test_failed_store
     card = credit_card(year: 2010)
     response = @gateway.store(card, @options)
     assert_failure response
-    assert_nil response.params['customer_vault_id']
   end
 
   def test_successful_store_with_echeck
     response = @gateway.store(@check, @options)
     assert_success response
     assert_equal 'Succeeded', response.message
-    assert response.params['customer_vault_id']
+    assert response.authorization.include?(response.params['customer_vault_id'])
   end
 
   def test_successful_store_and_purchase
-    vault_id = @gateway.store(@credit_card, @options).params['customer_vault_id']
+    vault_id = @gateway.store(@credit_card, @options).authorization
     purchase = @gateway.purchase(@amount, vault_id, @options)
     assert_success purchase
     assert_equal 'Succeeded', purchase.message
   end
 
   def test_successful_store_and_auth
-    vault_id = @gateway.store(@credit_card, @options).params['customer_vault_id']
+    vault_id = @gateway.store(@credit_card, @options).authorization
     auth = @gateway.authorize(@amount, vault_id, @options)
     assert_success auth
     assert_equal 'Succeeded', auth.message
   end
 
   def test_successful_store_and_credit
-    vault_id = @gateway.store(@credit_card, @options).params['customer_vault_id']
+    vault_id = @gateway.store(@credit_card, @options).authorization
     credit = @gateway.credit(@amount, vault_id, @options)
     assert_success credit
     assert_equal 'Succeeded', credit.message

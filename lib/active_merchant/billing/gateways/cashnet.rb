@@ -60,10 +60,10 @@ module ActiveMerchant #:nodoc:
       end
 
       def scrub(transcript)
-        transcript
-          .gsub(%r{(password=)[^&]+}, '\1[FILTERED]')
-          .gsub(%r{(cardno=)[^&]+}, '\1[FILTERED]')
-          .gsub(%r{(cid=)[^&]+}, '\1[FILTERED]')
+        transcript.
+          gsub(%r{(password=)[^&]+}, '\1[FILTERED]').
+          gsub(%r{(cardno=)[^&]+}, '\1[FILTERED]').
+          gsub(%r{(cid=)[^&]+}, '\1[FILTERED]')
       end
 
       private
@@ -136,11 +136,11 @@ module ActiveMerchant #:nodoc:
         match = body.match(/<cngateway>(.*)<\/cngateway>/)
         return nil unless match
 
-        Hash[CGI::parse(match[1]).map{|k,v| [k.to_sym,v.first]}]
+        Hash[CGI::parse(match[1]).map { |k, v| [k.to_sym, v.first] }]
       end
 
       def handle_response(response)
-        if (200...300).include?(response.code.to_i)
+        if (200...300).cover?(response.code.to_i)
           return response.body
         elsif response.code.to_i == 302
           return ssl_get(URI.parse(response['location']))

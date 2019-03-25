@@ -22,6 +22,7 @@ module ActiveMerchant #:nodoc:
       }
 
       def initialize(options={})
+        ActiveMerchant.deprecated('IPP gateway is now named Bambora Asia-Pacific')
         requires!(options, :username, :password)
         super
       end
@@ -130,7 +131,7 @@ module ActiveMerchant #:nodoc:
           response,
           authorization: authorization_from(response),
           error_code: error_code_from(response),
-          test: test?,
+          test: test?
         )
       end
 

@@ -9,7 +9,8 @@ class BeanstreamTest < Test::Unit::TestCase
     @gateway = BeanstreamGateway.new(
                  :login => 'merchant id',
                  :user => 'username',
-                 :password => 'password'
+                 :password => 'password',
+                 :api_key => 'api_key'
                )
 
     @credit_card = credit_card
@@ -21,7 +22,7 @@ class BeanstreamTest < Test::Unit::TestCase
       number: '4030000010001234',
       payment_cryptogram: 'cryptogram goes here',
       eci: 'an ECI value',
-      transaction_id: 'transaction ID',
+      transaction_id: 'transaction ID'
     )
 
     @check       = check(
@@ -71,7 +72,7 @@ class BeanstreamTest < Test::Unit::TestCase
     response = stub_comms(@gateway, :ssl_request) do
       @gateway.purchase(@amount, @decrypted_credit_card, @options.merge(recurring: true))
     end.check_request do |method, endpoint, data, headers|
-      assert_match(/recurringPayment=true/, data)
+      assert_match(/recurringPayment=1/, data)
     end.respond_with(successful_purchase_response)
 
     assert_success response
@@ -81,7 +82,7 @@ class BeanstreamTest < Test::Unit::TestCase
     response = stub_comms(@gateway, :ssl_request) do
       @gateway.authorize(@amount, @decrypted_credit_card, @options.merge(recurring: true))
     end.check_request do |method, endpoint, data, headers|
-      assert_match(/recurringPayment=true/, data)
+      assert_match(/recurringPayment=1/, data)
     end.respond_with(successful_purchase_response)
 
     assert_success response
@@ -138,7 +139,7 @@ class BeanstreamTest < Test::Unit::TestCase
   def test_successful_purchase_with_vault
     @gateway.expects(:ssl_post).returns(successful_purchase_response)
 
-    vault = rand(100000)+10001
+    vault = rand(10001..110000)
 
     assert response = @gateway.purchase(@amount, vault, @options)
     assert_success response
@@ -160,7 +161,6 @@ class BeanstreamTest < Test::Unit::TestCase
     assert_failure response
     assert_equal 'DECLINE', response.message
   end
-
 
   # Testing Non-American countries
 

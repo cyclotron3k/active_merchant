@@ -10,7 +10,7 @@ class RemotePinTest < Test::Unit::TestCase
     @declined_card = credit_card('4100000000000001')
 
     @options = {
-      :email => 'roland@pin.net.au',
+      :email => 'roland@pinpayments.com',
       :ip => '203.59.39.62',
       :order_id => '1',
       :billing_address => address,
@@ -36,6 +36,11 @@ class RemotePinTest < Test::Unit::TestCase
     assert_equal true, response.params['response']['captured']
     assert_equal options_with_metadata[:metadata][:order_id], response.params['response']['metadata']['order_id']
     assert_equal options_with_metadata[:metadata][:purchase_number], response.params['response']['metadata']['purchase_number']
+  end
+
+  def test_successful_purchase_with_reference
+    response = @gateway.purchase(@amount, @credit_card, @options.merge(reference: 'statement descriptor'))
+    assert_success response
   end
 
   def test_successful_authorize_and_capture

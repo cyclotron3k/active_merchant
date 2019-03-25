@@ -101,7 +101,7 @@ class OptimalPaymentTest < Test::Unit::TestCase
   def test_purchase_with_shipping_address
     @options[:shipping_address] = {:country => 'CA'}
     @gateway.expects(:ssl_post).with do |url, data|
-      xml = data.split('&').detect{|string| string =~ /txnRequest=/}.gsub('txnRequest=','')
+      xml = data.split('&').detect { |string| string =~ /txnRequest=/ }.gsub('txnRequest=', '')
       doc = Nokogiri::XML.parse(CGI.unescape(xml))
       doc.xpath('//xmlns:shippingDetails/xmlns:country').first.text == 'CA' && doc.to_s.include?('<shippingDetails>')
     end.returns(successful_purchase_response)
@@ -112,7 +112,7 @@ class OptimalPaymentTest < Test::Unit::TestCase
   def test_purchase_without_shipping_address
     @options[:shipping_address] = nil
     @gateway.expects(:ssl_post).with do |url, data|
-      xml = data.split('&').detect{|string| string =~ /txnRequest=/}.gsub('txnRequest=','')
+      xml = data.split('&').detect { |string| string =~ /txnRequest=/ }.gsub('txnRequest=', '')
       doc = Nokogiri::XML.parse(CGI.unescape(xml))
       doc.to_s.include?('<shippingDetails>') == false
     end.returns(successful_purchase_response)
@@ -132,7 +132,7 @@ class OptimalPaymentTest < Test::Unit::TestCase
     stub_comms do
       @gateway.purchase(@amount, @credit_card, @options)
     end.check_request do |endpoint, data, headers|
-      assert_match (/cvdIndicator%3E1%3C\/cvdIndicator%3E%0A%20%20%20%20%3Ccvd%3E123%3C\/cvd/), data
+      assert_match(/cvdIndicator%3E1%3C\/cvdIndicator%3E%0A%20%20%20%20%3Ccvd%3E123%3C\/cvd/, data)
     end.respond_with(successful_purchase_response)
 
     credit_card = CreditCard.new(
@@ -147,7 +147,7 @@ class OptimalPaymentTest < Test::Unit::TestCase
     stub_comms do
       @gateway.purchase(@amount, credit_card, @options)
     end.check_request do |endpoint, data, headers|
-      assert_match (/cvdIndicator%3E0%3C\/cvdIndicator%3E%0A%20%20%3C\/card/), data
+      assert_match(/cvdIndicator%3E0%3C\/cvdIndicator%3E%0A%20%20%3C\/card/, data)
     end.respond_with(failed_purchase_response)
   end
 
@@ -172,23 +172,21 @@ class OptimalPaymentTest < Test::Unit::TestCase
   end
 
   def test_in_production_with_test_param_sends_request_to_test_server
-    begin
-      ActiveMerchant::Billing::Base.mode = :production
-      @gateway = OptimalPaymentGateway.new(
-                    :account_number => '12345678',
-                   :store_id => 'login',
-                   :password => 'password',
-                   :test => true
-                 )
-      @gateway.expects(:ssl_post).with('https://webservices.test.optimalpayments.com/creditcardWS/CreditCardServlet/v1', anything).returns(successful_purchase_response)
+    ActiveMerchant::Billing::Base.mode = :production
+    @gateway = OptimalPaymentGateway.new(
+      :account_number => '12345678',
+      :store_id => 'login',
+      :password => 'password',
+      :test => true
+    )
+    @gateway.expects(:ssl_post).with('https://webservices.test.optimalpayments.com/creditcardWS/CreditCardServlet/v1', anything).returns(successful_purchase_response)
 
-      assert response = @gateway.purchase(@amount, @credit_card, @options)
-      assert_instance_of Response, response
-      assert_success response
-      assert response.test?
-    ensure
-      ActiveMerchant::Billing::Base.mode = :test
-    end
+    assert response = @gateway.purchase(@amount, @credit_card, @options)
+    assert_instance_of Response, response
+    assert_success response
+    assert response.test?
+  ensure
+    ActiveMerchant::Billing::Base.mode = :test
   end
 
   def test_avs_result_in_response
@@ -214,7 +212,6 @@ class OptimalPaymentTest < Test::Unit::TestCase
   end
 
   def test_deprecated_options
-
     assert_deprecation_warning("The 'account' option is deprecated in favor of 'account_number' and will be removed in a future version.") do
       @gateway = OptimalPaymentGateway.new(
         :account => '12345678',

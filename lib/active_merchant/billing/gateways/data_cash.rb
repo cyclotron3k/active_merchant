@@ -6,7 +6,7 @@ module ActiveMerchant
       self.default_currency = 'GBP'
       self.supported_countries = ['GB']
 
-      self.supported_cardtypes = [ :visa, :master, :american_express, :discover, :diners_club, :jcb, :maestro, :switch, :solo, :laser ]
+      self.supported_cardtypes = [ :visa, :master, :american_express, :discover, :diners_club, :jcb, :maestro ]
 
       self.homepage_url = 'http://www.datacash.com/'
       self.display_name = 'DataCash'
@@ -214,22 +214,10 @@ module ActiveMerchant
       end
 
       def add_credit_card(xml, credit_card, address)
-
         xml.tag! :Card do
-
           # DataCash calls the CC number 'pan'
           xml.tag! :pan, credit_card.number
           xml.tag! :expirydate, format_date(credit_card.month, credit_card.year)
-
-          # optional values - for Solo etc
-          if [ 'switch', 'solo' ].include?(card_brand(credit_card).to_s)
-
-            xml.tag! :issuenumber, credit_card.issue_number unless credit_card.issue_number.blank?
-
-            if !credit_card.start_month.blank? && !credit_card.start_year.blank?
-              xml.tag! :startdate, format_date(credit_card.start_month, credit_card.start_year)
-            end
-          end
 
           xml.tag! :Cv2Avs do
             xml.tag! :cv2, credit_card.verification_value if credit_card.verification_value?
@@ -249,23 +237,23 @@ module ActiveMerchant
             # a predefined one
             xml.tag! :ExtendedPolicy do
               xml.tag! :cv2_policy,
-              :notprovided =>   POLICY_REJECT,
-              :notchecked =>    POLICY_REJECT,
-              :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT,
-              :partialmatch =>  POLICY_REJECT
+                :notprovided =>   POLICY_REJECT,
+                :notchecked =>    POLICY_REJECT,
+                :matched =>       POLICY_ACCEPT,
+                :notmatched =>    POLICY_REJECT,
+                :partialmatch =>  POLICY_REJECT
               xml.tag! :postcode_policy,
-              :notprovided =>   POLICY_ACCEPT,
-              :notchecked =>    POLICY_ACCEPT,
-              :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT,
-              :partialmatch =>  POLICY_ACCEPT
+                :notprovided =>   POLICY_ACCEPT,
+                :notchecked =>    POLICY_ACCEPT,
+                :matched =>       POLICY_ACCEPT,
+                :notmatched =>    POLICY_REJECT,
+                :partialmatch =>  POLICY_ACCEPT
               xml.tag! :address_policy,
-              :notprovided =>   POLICY_ACCEPT,
-              :notchecked =>    POLICY_ACCEPT,
-              :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT,
-              :partialmatch =>  POLICY_ACCEPT
+                :notprovided =>   POLICY_ACCEPT,
+                :notchecked =>    POLICY_ACCEPT,
+                :matched =>       POLICY_ACCEPT,
+                :notmatched =>    POLICY_REJECT,
+                :partialmatch =>  POLICY_ACCEPT
             end
           end
         end
@@ -281,11 +269,10 @@ module ActiveMerchant
       end
 
       def format_date(month, year)
-        "#{format(month,:two_digits)}/#{format(year, :two_digits)}"
+        "#{format(month, :two_digits)}/#{format(year, :two_digits)}"
       end
 
       def parse(body)
-
         response = {}
         xml = REXML::Document.new(body)
         root = REXML::XPath.first(xml, '//Response')
@@ -299,7 +286,7 @@ module ActiveMerchant
 
       def parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|e| parse_element(response, e) }
+          node.elements.each { |e| parse_element(response, e) }
         else
           response[node.name.underscore.to_sym] = node.text
         end

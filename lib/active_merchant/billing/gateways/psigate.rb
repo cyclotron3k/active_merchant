@@ -104,7 +104,7 @@ module ActiveMerchant #:nodoc:
 
         Response.new(successful?(response), message_from(response), response,
           :test => test?,
-          :authorization => build_authorization(response) ,
+          :authorization => build_authorization(response),
           :avs_result => { :code => response[:avsresult] },
           :cvv_result => response[:cardidresult]
         )
@@ -168,7 +168,7 @@ module ActiveMerchant #:nodoc:
 
         if creditcard
           exp_month = sprintf('%.2i', creditcard.month) unless creditcard.month.blank?
-          exp_year = creditcard.year.to_s[2,2] unless creditcard.year.blank?
+          exp_year = creditcard.year.to_s[2, 2] unless creditcard.year.blank?
           card_id_code = (creditcard.verification_value.blank? ? nil : '1')
 
           params.update(

@@ -43,8 +43,6 @@ module ActiveMerchant #:nodoc:
         :american_express => 'Amex',
         :jcb => 'JCB',
         :diners_club => 'DinersClub',
-        :switch => 'Switch',
-        :solo => 'Solo'
       }
 
       TRANSACTIONS = {
@@ -80,6 +78,7 @@ module ActiveMerchant #:nodoc:
       end
 
       private
+
       def build_request(body, options = {})
         xml = Builder::XmlMarkup.new
         xml.instruct!
@@ -119,6 +118,11 @@ module ActiveMerchant #:nodoc:
               xml.tag!('Description', options[:description]) unless options[:description].blank?
               xml.tag!('Comment', options[:comment]) unless options[:comment].blank?
               xml.tag!('ExtData', 'Name'=> 'COMMENT2', 'Value'=> options[:comment2]) unless options[:comment2].blank?
+              xml.tag!(
+                'ExtData',
+                'Name' => 'CAPTURECOMPLETE',
+                'Value' => options[:capture_complete]
+              ) unless options[:capture_complete].blank?
             end
           end
         end
@@ -174,10 +178,10 @@ module ActiveMerchant #:nodoc:
           # down as we do everywhere else. RPPaymentResult elements are not contained
           # in an RPPaymentResults element so we'll come here multiple times
           response[node_name] ||= []
-          response[node_name] << ( payment_result_response = {} )
-          node.xpath('.//*').each{ |e| parse_element(payment_result_response, e) }
+          response[node_name] << (payment_result_response = {})
+          node.xpath('.//*').each { |e| parse_element(payment_result_response, e) }
         when node.xpath('.//*').to_a.any?
-          node.xpath('.//*').each{|e| parse_element(response, e) }
+          node.xpath('.//*').each { |e| parse_element(response, e) }
         when node_name.to_s =~ /amt$/
           # *Amt elements don't put the value in the #text - instead they use a Currency attribute
           response[node_name] = node.attributes['Currency'].to_s
@@ -198,7 +202,7 @@ module ActiveMerchant #:nodoc:
           'X-VPS-Request-ID' => SecureRandom.hex(16)
         }
 
-        headers.merge!('PAYPAL-NVP' => 'Y') if self.use_paypal_nvp
+        headers['PAYPAL-NVP'] = 'Y' if self.use_paypal_nvp
         headers
       end
 

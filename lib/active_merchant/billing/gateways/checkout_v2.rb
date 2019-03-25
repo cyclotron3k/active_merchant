@@ -22,7 +22,7 @@ module ActiveMerchant #:nodoc:
           r.process { capture(amount, r.authorization, options) }
         end
 
-        merged_params = multi.responses.map { |r| r.params }.reduce({}, :merge)
+        merged_params = multi.responses.map(&:params).reduce({}, :merge)
         succeeded = success_from(merged_params)
 
         response(:purchase, succeeded, merged_params)
@@ -180,11 +180,11 @@ module ActiveMerchant #:nodoc:
 
       def parse(body)
         JSON.parse(body)
-        rescue JSON::ParserError
-          {
-            'message' => 'Invalid JSON response received from CheckoutV2Gateway. Please contact CheckoutV2Gateway if you continue to receive this message.',
-            'raw_response' => scrub(body)
-          }
+      rescue JSON::ParserError
+        {
+          'message' => 'Invalid JSON response received from CheckoutV2Gateway. Please contact CheckoutV2Gateway if you continue to receive this message.',
+          'raw_response' => scrub(body)
+        }
       end
 
       def success_from(response)

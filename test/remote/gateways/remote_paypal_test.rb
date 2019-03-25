@@ -10,13 +10,15 @@ class PaypalTest < Test::Unit::TestCase
     @params = {
       :order_id => generate_unique_id,
       :email => 'buyer@jadedpallet.com',
-      :billing_address => { :name => 'Longbob Longsen',
-                    :address1 => '4321 Penny Lane',
-                    :city => 'Jonsetown',
-                    :state => 'NC',
-                    :country => 'US',
-                    :zip => '23456'
-                  } ,
+      :billing_address =>
+        {
+          :name => 'Longbob Longsen',
+          :address1 => '4321 Penny Lane',
+          :city => 'Jonsetown',
+          :state => 'NC',
+          :country => 'US',
+          :zip => '23456'
+        },
       :description => 'Stuff that you purchased, yo!',
       :ip => '10.0.0.1'
     }
@@ -27,8 +29,8 @@ class PaypalTest < Test::Unit::TestCase
     # each auth-id can only be reauthorized and tested once.
     # leave it commented if you don't want to test reauthorization.
     #
-    #@three_days_old_auth_id  = "9J780651TU4465545"
-    #@three_days_old_auth_id2 = "62503445A3738160X"
+    # @three_days_old_auth_id  = "9J780651TU4465545"
+    # @three_days_old_auth_id2 = "62503445A3738160X"
   end
 
   def test_transcript_scrubbing
@@ -194,7 +196,7 @@ class PaypalTest < Test::Unit::TestCase
   end
 
   def test_failed_transfer
-     # paypal allows a max transfer of $10,000
+    # paypal allows a max transfer of $10,000
     response = @gateway.transfer(1000001, 'joe@example.com')
     assert_failure response
   end
@@ -214,7 +216,7 @@ class PaypalTest < Test::Unit::TestCase
     assert_success response
 
     # You can only include up to 250 recipients
-    recipients = (1..251).collect {|i| [100, "person#{i}@example.com"]}
+    recipients = (1..251).collect { |i| [100, "person#{i}@example.com"] }
     response = @gateway.transfer(*recipients)
     assert_failure response
   end

@@ -4,16 +4,11 @@ module ActiveMerchant #:nodoc:
       self.live_url = self.test_url = 'https://api.mercadopago.com/v1'
 
       self.supported_countries = ['AR', 'BR', 'CL', 'CO', 'MX', 'PE', 'UY']
-      self.supported_cardtypes = [:visa, :master, :american_express]
+      self.supported_cardtypes = [:visa, :master, :american_express, :elo]
 
       self.homepage_url = 'https://www.mercadopago.com/'
       self.display_name = 'Mercado Pago'
       self.money_format = :dollars
-
-      CARD_BRAND = {
-        'american_express' => 'amex',
-        'diners_club' => 'diners'
-      }
 
       def initialize(options={})
         requires!(options, :access_token)
@@ -23,18 +18,16 @@ module ActiveMerchant #:nodoc:
       def purchase(money, payment, options={})
         MultiResponse.run do |r|
           r.process { commit('tokenize', 'card_tokens', card_token_request(money, payment, options)) }
-          options.merge!(card_brand: (CARD_BRAND[payment.brand] || payment.brand))
-          options.merge!(card_token: r.authorization.split('|').first)
-          r.process { commit('purchase', 'payments', purchase_request(money, payment, options) ) }
+          options[:card_token] = r.authorization.split('|').first
+          r.process { commit('purchase', 'payments', purchase_request(money, payment, options)) }
         end
       end
 
       def authorize(money, payment, options={})
         MultiResponse.run do |r|
           r.process { commit('tokenize', 'card_tokens', card_token_request(money, payment, options)) }
-          options.merge!(card_brand: (CARD_BRAND[payment.brand] || payment.brand))
-          options.merge!(card_token: r.authorization.split('|').first)
-          r.process { commit('authorize', 'payments', authorize_request(money, payment, options) ) }
+          options[:card_token] = r.authorization.split('|').first
+          r.process { commit('authorize', 'payments', authorize_request(money, payment, options)) }
         end
       end
 
@@ -102,14 +95,30 @@ module ActiveMerchant #:nodoc:
         add_additional_data(post, options)
         add_customer_data(post, payment, options)
         add_address(post, options)
+        add_processing_mode(post, options)
         post[:binary_mode] = (options[:binary_mode].nil? ? true : options[:binary_mode])
         post
       end
 
       def authorize_request(money, payment, options = {})
         post = purchase_request(money, payment, options)
-        post.merge!(capture: false)
+        post[:capture] = false
         post
+      end
+
+      def add_processing_mode(post, options)
+        return unless options[:processing_mode]
+        post[:processing_mode] = options[:processing_mode]
+        post[:merchant_account_id] = options[:merchant_account_id] if options[:merchant_account_id]
+        add_merchant_services(post, options)
+      end
+
+      def add_merchant_services(post, options)
+        return unless options[:fraud_scoring] || options[:fraud_manual_review]
+        merchant_services = {}
+        merchant_services[:fraud_scoring] = options[:fraud_scoring] if options[:fraud_scoring]
+        merchant_services[:fraud_manual_review] = options[:fraud_manual_review] if options[:fraud_manual_review]
+        post[:merchant_services] = merchant_services
       end
 
       def add_additional_data(post, options)
@@ -118,7 +127,6 @@ module ActiveMerchant #:nodoc:
         post[:additional_info] = {
           ip_address: options[:ip_address]
         }.merge(options[:additional_info] || {})
-
 
         add_address(post, options)
         add_shipping_address(post, options)
@@ -182,11 +190,18 @@ module ActiveMerchant #:nodoc:
 
       def add_payment(post, options)
         post[:token] = options[:card_token]
-        post[:payment_method_id] = options[:card_brand]
+        post[:issuer_id] = options[:issuer_id] if options[:issuer_id]
+        post[:payment_method_id] = options[:payment_method_id] if options[:payment_method_id]
       end
 
       def parse(body)
         JSON.parse(body)
+      rescue JSON::ParserError
+        {
+          'status' => 'error',
+          'status_detail' => 'json_parse_error',
+          'message' => "A non-JSON response was received from Mercado Pago where one was expected. The raw response was:\n\n#{body}"
+        }
       end
 
       def commit(action, path, parameters)
@@ -208,7 +223,7 @@ module ActiveMerchant #:nodoc:
 
       def success_from(action, response)
         if action == 'refund'
-          response['error'].nil?
+          response['status'] != 404 && response['error'].nil?
         else
           ['active', 'approved', 'authorized', 'cancelled', 'in_process'].include?(response['status'])
         end

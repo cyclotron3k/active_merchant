@@ -18,14 +18,14 @@ class RemoteRealexTest < Test::Unit::TestCase
     @mastercard_referral_a = card_fixtures(:realex_mastercard_referral_a)
     @mastercard_coms_error = card_fixtures(:realex_mastercard_coms_error)
 
-    @apple_pay = credit_card = network_tokenization_credit_card('4242424242424242',
+    @apple_pay = network_tokenization_credit_card('4242424242424242',
       payment_cryptogram: 'EHuWW9PiBkWvqE5juRwDzAUFBAk=',
       verification_value: nil,
       eci: '05',
       source: :apple_pay
     )
 
-    @declined_apple_pay = credit_card = network_tokenization_credit_card('4000120000001154',
+    @declined_apple_pay = network_tokenization_credit_card('4000120000001154',
       payment_cryptogram: 'EHuWW9PiBkWvqE5juRwDzAUFBAk=',
       verification_value: nil,
       eci: '05',
@@ -40,7 +40,6 @@ class RemoteRealexTest < Test::Unit::TestCase
 
   def test_realex_purchase
     [ @visa, @mastercard ].each do |card|
-
       response = @gateway.purchase(@amount, card,
         :order_id => generate_unique_id,
         :description => 'Test Realex Purchase',
@@ -96,7 +95,6 @@ class RemoteRealexTest < Test::Unit::TestCase
 
   def test_realex_purchase_declined
     [ @visa_declined, @mastercard_declined ].each do |card|
-
       response = @gateway.purchase(@amount, card,
         :order_id => generate_unique_id,
         :description => 'Test Realex purchase declined'
@@ -107,7 +105,6 @@ class RemoteRealexTest < Test::Unit::TestCase
       assert_equal '101', response.params['result']
       assert_equal response.params['message'], response.message
     end
-
   end
 
   def test_realex_purchase_with_apple_pay_declined
@@ -120,7 +117,6 @@ class RemoteRealexTest < Test::Unit::TestCase
 
   def test_realex_purchase_referral_b
     [ @visa_referral_b, @mastercard_referral_b ].each do |card|
-
       response = @gateway.purchase(@amount, card,
         :order_id => generate_unique_id,
         :description => 'Test Realex Referral B'
@@ -135,7 +131,6 @@ class RemoteRealexTest < Test::Unit::TestCase
 
   def test_realex_purchase_referral_a
     [ @visa_referral_a, @mastercard_referral_a ].each do |card|
-
       response = @gateway.purchase(@amount, card,
         :order_id => generate_unique_id,
         :description => 'Test Realex Rqeferral A'
@@ -145,12 +140,10 @@ class RemoteRealexTest < Test::Unit::TestCase
       assert_equal '103', response.params['result']
       assert_equal RealexGateway::DECLINED, response.message
     end
-
   end
 
   def test_realex_purchase_coms_error
     [ @visa_coms_error, @mastercard_coms_error ].each do |card|
-
       response = @gateway.purchase(@amount, card,
         :order_id => generate_unique_id,
         :description => 'Test Realex coms error'
@@ -162,7 +155,6 @@ class RemoteRealexTest < Test::Unit::TestCase
       assert_equal '200', response.params['result']
       assert_equal RealexGateway::BANK_ERROR, response.message
     end
-
   end
 
   def test_realex_expiry_month_error
@@ -336,9 +328,34 @@ class RemoteRealexTest < Test::Unit::TestCase
     assert_equal 'Successful', rebate_response.message
   end
 
+  def test_realex_verify
+    response = @gateway.verify(@visa,
+      :order_id => generate_unique_id,
+      :description => 'Test Realex verify'
+    )
+
+    assert_not_nil response
+    assert_success response
+    assert response.test?
+    assert response.authorization.length > 0
+    assert_equal 'Successful', response.message
+  end
+
+  def test_realex_verify_declined
+    response = @gateway.verify(@visa_declined,
+      :order_id => generate_unique_id,
+      :description => 'Test Realex verify declined'
+    )
+
+    assert_not_nil response
+    assert_failure response
+    assert response.test?
+    assert_equal '101', response.params['result']
+    assert_match %r{DECLINED}i, response.message
+  end
+
   def test_maps_avs_and_cvv_response_codes
     [ @visa, @mastercard ].each do |card|
-
       response = @gateway.purchase(@amount, card,
         :order_id => generate_unique_id,
         :description => 'Test Realex Purchase',
@@ -357,13 +374,13 @@ class RemoteRealexTest < Test::Unit::TestCase
   def test_transcript_scrubbing
     transcript = capture_transcript(@gateway) do
       @gateway.purchase(@amount, @visa_declined,
-      :order_id => generate_unique_id,
-      :description => 'Test Realex Purchase',
-      :billing_address => {
-        :zip => '90210',
-        :country => 'US'
-      }
-    )
+        :order_id => generate_unique_id,
+        :description => 'Test Realex Purchase',
+        :billing_address => {
+          :zip => '90210',
+          :country => 'US'
+        }
+      )
     end
     clean_transcript = @gateway.scrub(transcript)
 

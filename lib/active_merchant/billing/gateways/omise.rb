@@ -19,7 +19,7 @@ module ActiveMerchant #:nodoc:
       self.default_currency = 'THB'
       self.money_format     = :cents
 
-      #Country supported by Omise
+      # Country supported by Omise
       # * Thailand
       self.supported_countries = %w( TH JP )
 
@@ -164,7 +164,7 @@ module ActiveMerchant #:nodoc:
         transcript.
           gsub(/(Authorization: Basic )\w+/i, '\1[FILTERED]').
           gsub(/(\\"number\\":)\\"\d+\\"/, '\1[FILTERED]').
-          gsub(/(\\"security_code\\":)\\"\d+\\"/,'\1[FILTERED]')
+          gsub(/(\\"security_code\\":)\\"\d+\\"/, '\1[FILTERED]')
       end
 
       private
@@ -246,16 +246,16 @@ module ActiveMerchant #:nodoc:
       def message_to_standard_error_code_from(response)
         message = response['message'] if response['code'] == 'invalid_card'
         case message
-          when /brand not supported/
-            STANDARD_ERROR_CODE[:invalid_number]
-          when /number is invalid/
-            STANDARD_ERROR_CODE[:incorrect_number]
-          when /expiration date cannot be in the past/
-            STANDARD_ERROR_CODE[:expired_card]
-          when /expiration \w+ is invalid/
-            STANDARD_ERROR_CODE[:invalid_expiry_date]
-          else
-            STANDARD_ERROR_CODE[:processing_error]
+        when /brand not supported/
+          STANDARD_ERROR_CODE[:invalid_number]
+        when /number is invalid/
+          STANDARD_ERROR_CODE[:incorrect_number]
+        when /expiration date cannot be in the past/
+          STANDARD_ERROR_CODE[:expired_card]
+        when /expiration \w+ is invalid/
+          STANDARD_ERROR_CODE[:invalid_expiry_date]
+        else
+          STANDARD_ERROR_CODE[:processing_error]
         end
       end
 

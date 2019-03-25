@@ -107,7 +107,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(body)
-        Hash[body.split('&').map{|x| x.split('=').map{|y| CGI.unescape(y)}}]
+        Hash[body.split('&').map { |x| x.split('=').map { |y| CGI.unescape(y) } }]
       end
 
       def commit(action, money, parameters)
@@ -193,15 +193,14 @@ module ActiveMerchant #:nodoc:
 
       def signature(action, post, parameters = {})
         string = if %w(cc_settle cc_debit cc_preauth cc_refund).include?(action)
-          post['UserName'] + post['Timestamp'] + post['RequestID'] + post['PymtType'] + parameters['Amount'].to_s + parameters['Currency']
-        elsif action == 'void'
-          post['UserName'] + post['Timestamp'] + post['RequestID'] + parameters['TrackingNumber']
-        else
-          post['UserName']
+                   post['UserName'] + post['Timestamp'] + post['RequestID'] + post['PymtType'] + parameters['Amount'].to_s + parameters['Currency']
+                 elsif action == 'void'
+                   post['UserName'] + post['Timestamp'] + post['RequestID'] + parameters['TrackingNumber']
+                 else
+                   post['UserName']
         end
         OpenSSL::HMAC.hexdigest(OpenSSL::Digest::SHA1.new(@options[:secret]), @options[:secret], string)
       end
     end
   end
 end
-

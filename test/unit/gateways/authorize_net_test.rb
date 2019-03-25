@@ -29,6 +29,14 @@ class AuthorizeNetTest < Test::Unit::TestCase
       description: 'Store Purchase'
     }
 
+    @level_3_options = {
+      ship_from_address: {
+        zip: 'origin27701',
+        country: 'originUS'
+      },
+      summary_commodity_code: 'CODE'
+    }
+
     @additional_options = {
       line_items: [
         {
@@ -44,6 +52,21 @@ class AuthorizeNetTest < Test::Unit::TestCase
           description: 'floral',
           quantity: '200',
           unit_price: '20'
+        }
+      ]
+    }
+
+    @level_3_line_item_options = {
+      line_items: [
+        {
+          item_id: '1',
+          name: 'mug',
+          description: 'coffee',
+          quantity: '100',
+          unit_price: '10',
+          unit_of_measure: 'yards',
+          total_amount: '1000',
+          product_code: 'coupon'
         }
       ]
     }
@@ -262,6 +285,7 @@ class AuthorizeNetTest < Test::Unit::TestCase
 
     assert_equal 'M', response.cvv_result['code']
     assert_equal 'CVV matches', response.cvv_result['message']
+    assert_equal 'I00001', response.params['full_response_code']
 
     assert_equal '508141794', response.authorization.split('#')[0]
     assert response.test?
@@ -325,6 +349,20 @@ class AuthorizeNetTest < Test::Unit::TestCase
     end.respond_with(successful_purchase_response)
   end
 
+  def test_passes_level_3_options
+    stub_comms do
+      @gateway.purchase(@amount, credit_card, @options.merge(@level_3_options))
+    end.check_request do |endpoint, data, headers|
+      assert_match(/<order>/, data)
+      assert_match(/<summaryCommodityCode>#{@level_3_options[:summary_commodity_code]}<\/summaryCommodityCode>/, data)
+      assert_match(/<\/order>/, data)
+      assert_match(/<shipFrom>/, data)
+      assert_match(/<zip>#{@level_3_options[:ship_from_address][:zip]}<\/zip>/, data)
+      assert_match(/<country>#{@level_3_options[:ship_from_address][:country]}<\/country>/, data)
+      assert_match(/<\/shipFrom>/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
   def test_passes_line_items
     stub_comms do
       @gateway.purchase(@amount, credit_card, @options.merge(@additional_options))
@@ -342,6 +380,24 @@ class AuthorizeNetTest < Test::Unit::TestCase
       assert_match(/<description>#{@additional_options[:line_items][1][:description]}<\/description>/, data)
       assert_match(/<quantity>#{@additional_options[:line_items][1][:quantity]}<\/quantity>/, data)
       assert_match(/<unitPrice>#{@additional_options[:line_items][1][:unit_price]}<\/unitPrice>/, data)
+      assert_match(/<\/lineItems>/, data)
+    end.respond_with(successful_purchase_response)
+  end
+
+  def test_passes_level_3_line_items
+    stub_comms do
+      @gateway.purchase(@amount, credit_card, @options.merge(@level_3_line_item_options))
+    end.check_request do |endpoint, data, headers|
+      assert_match(/<lineItems>/, data)
+      assert_match(/<lineItem>/, data)
+      assert_match(/<itemId>#{@level_3_line_item_options[:line_items][0][:item_id]}<\/itemId>/, data)
+      assert_match(/<name>#{@level_3_line_item_options[:line_items][0][:name]}<\/name>/, data)
+      assert_match(/<description>#{@level_3_line_item_options[:line_items][0][:description]}<\/description>/, data)
+      assert_match(/<quantity>#{@level_3_line_item_options[:line_items][0][:quantity]}<\/quantity>/, data)
+      assert_match(/<unitPrice>#{@level_3_line_item_options[:line_items][0][:unit_price]}<\/unitPrice>/, data)
+      assert_match(/<unitOfMeasure>#{@level_3_line_item_options[:line_items][0][:unit_of_measure]}<\/unitOfMeasure>/, data)
+      assert_match(/<totalAmount>#{@level_3_line_item_options[:line_items][0][:total_amount]}<\/totalAmount>/, data)
+      assert_match(/<productCode>#{@level_3_line_item_options[:line_items][0][:product_code]}<\/productCode>/, data)
       assert_match(/<\/lineItems>/, data)
     end.respond_with(successful_purchase_response)
   end
@@ -391,6 +447,24 @@ class AuthorizeNetTest < Test::Unit::TestCase
     assert response.avs_result['street_match']
     assert response.avs_result['postal_match']
     assert_equal 'Street address and 5-digit postal code match.', response.avs_result['message']
+  end
+
+  def test_successful_purchase_using_stored_card_and_custom_delimiter
+    @gateway.expects(:ssl_post).returns(successful_store_response)
+    store = @gateway.store(@credit_card, @options)
+    assert_success store
+
+    @gateway.expects(:ssl_post).returns(successful_purchase_using_stored_card_response_with_pipe_delimiter)
+
+    response = @gateway.purchase(@amount, store.authorization, {delimiter: '|', description: 'description, with, commas'})
+    assert_success response
+
+    assert_equal '2235700270#XXXX2224#cim_purchase', response.authorization
+    assert_equal 'Y', response.avs_result['code']
+    assert response.avs_result['street_match']
+    assert response.avs_result['postal_match']
+    assert_equal 'Street address and 5-digit postal code match.', response.avs_result['message']
+    assert_equal 'description, with, commas', response.params['order_description']
   end
 
   def test_failed_purchase_using_stored_card
@@ -803,6 +877,20 @@ class AuthorizeNetTest < Test::Unit::TestCase
     assert_equal '2214602071#2224#refund', refund.authorization
   end
 
+  def test_successful_bank_refund
+    response = stub_comms do
+      @gateway.refund(50, '12345667', account_type: 'checking', routing_number: '123450987', account_number: '12345667', first_name: 'Louise', last_name: 'Belcher')
+    end.check_request do |endpoint, data, headers|
+      parse(data) do |doc|
+        assert_equal 'checking', doc.at_xpath('//transactionRequest/payment/bankAccount/accountType').content
+        assert_equal '123450987', doc.at_xpath('//transactionRequest/payment/bankAccount/routingNumber').content
+        assert_equal '12345667', doc.at_xpath('//transactionRequest/payment/bankAccount/accountNumber').content
+        assert_equal 'Louise Belcher', doc.at_xpath('//transactionRequest/payment/bankAccount/nameOnAccount').content
+      end
+    end.respond_with(successful_refund_response)
+    assert_success response
+  end
+
   def test_refund_passing_extra_info
     response = stub_comms do
       @gateway.refund(50, '123456789', card_number: @credit_card.number, first_name: 'Bob', last_name: 'Smith', zip: '12345', order_id: '1', description: 'Refund for order 1')
@@ -877,7 +965,6 @@ class AuthorizeNetTest < Test::Unit::TestCase
     assert_equal 'X', response.avs_result['code']
     assert_equal 'Y', response.avs_result['street_match']
     assert_equal 'Y', response.avs_result['postal_match']
-
 
     @gateway.expects(:ssl_post).returns(address_not_provided_avs_response)
 
@@ -1030,7 +1117,7 @@ class AuthorizeNetTest < Test::Unit::TestCase
   def test_truncation
     card = credit_card('4242424242424242',
       first_name: 'a' * 51,
-      last_name: 'a' * 51,
+      last_name: 'a' * 51
     )
 
     options = {
@@ -1042,7 +1129,7 @@ class AuthorizeNetTest < Test::Unit::TestCase
         city: 'a' * 41,
         state: 'a' * 41,
         zip: 'a' * 21,
-        country: 'a' * 61,
+        country: 'a' * 61
       ),
       shipping_address: address(
         name: ['a' * 51, 'a' * 51].join(' '),
@@ -1051,7 +1138,7 @@ class AuthorizeNetTest < Test::Unit::TestCase
         city: 'a' * 41,
         state: 'a' * 41,
         zip: 'a' * 21,
-        country: 'a' * 61,
+        country: 'a' * 61
       )
     }
 
@@ -2109,6 +2196,23 @@ class AuthorizeNetTest < Test::Unit::TestCase
     eos
   end
 
+  def successful_purchase_using_stored_card_response_with_pipe_delimiter
+    <<-eos
+      <?xml version="1.0" encoding="UTF-8"?>
+      <createCustomerProfileTransactionResponse xmlns="AnetApi/xml/v1/schema/AnetApiSchema.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <refId>1</refId>
+      <messages>
+          <resultCode>Ok</resultCode>
+          <message>
+          <code>I00001</code>
+          <text>Successful.</text>
+          </message>
+      </messages>
+      <directResponse>1|1|1|This transaction has been approved.|8HUT72|Y|2235700270|1|description, with, commas|1.01|CC|auth_capture|e385c780422f4bd182c4|Longbob|Longsen||||n/a|||||||||||||||||||4A20EEAF89018FF075899DDB332E9D35||2|||||||||||XXXX2224|Visa||||||||||||||||</directResponse>
+      </createCustomerProfileTransactionResponse>
+    eos
+  end
+
   def failed_purchase_using_stored_card_response
     <<-eos
       <?xml version="1.0" encoding="UTF-8"?>
@@ -2208,7 +2312,6 @@ class AuthorizeNetTest < Test::Unit::TestCase
         </messages>
       </createCustomerProfileTransactionResponse>
     eos
-
   end
 
   def successful_void_using_stored_card_response

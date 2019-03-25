@@ -15,7 +15,7 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
 
       # The card types supported by the payment gateway
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :maestro, :jcb, :solo, :diners_club]
+      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :maestro, :jcb, :diners_club]
 
       # The homepage URL of the gateway
       self.homepage_url = 'http://www.iridiumcorp.co.uk/'
@@ -278,7 +278,7 @@ module ActiveMerchant #:nodoc:
       private
 
       def build_purchase_request(type, money, creditcard, options)
-        options.merge!(:action => 'CardDetailsTransaction')
+        options[:action] = 'CardDetailsTransaction'
         build_request(options) do |xml|
           add_purchase_data(xml, type, money, options)
           add_creditcard(xml, creditcard)
@@ -287,7 +287,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def build_reference_request(type, money, authorization, options)
-        options.merge!(:action => 'CrossReferenceTransaction')
+        options[:action] = 'CrossReferenceTransaction'
         order_id, cross_reference, _ = authorization.split(';')
         build_request(options) do |xml|
           if money
@@ -377,8 +377,8 @@ module ActiveMerchant #:nodoc:
       def commit(request, options)
         requires!(options, :action)
         response = parse(ssl_post(test? ? self.test_url : self.live_url, request,
-                              {'SOAPAction' => 'https://www.thepaymentgateway.net/' + options[:action],
-                               'Content-Type' => 'text/xml; charset=utf-8' }))
+          {'SOAPAction' => 'https://www.thepaymentgateway.net/' + options[:action],
+           'Content-Type' => 'text/xml; charset=utf-8' }))
 
         success = response[:transaction_result][:status_code] == '0'
         message = response[:transaction_result][:message]
@@ -419,39 +419,39 @@ module ActiveMerchant #:nodoc:
         case node.name
         when 'CrossReferenceTransactionResult'
           reply[:transaction_result] = {}
-          node.attributes.each do |a,b|
+          node.attributes.each do |a, b|
             reply[:transaction_result][a.underscore.to_sym] = b
           end
-          node.elements.each{|e| parse_element(reply[:transaction_result], e) } if node.has_elements?
+          node.elements.each { |e| parse_element(reply[:transaction_result], e) } if node.has_elements?
 
         when 'CardDetailsTransactionResult'
           reply[:transaction_result] = {}
-          node.attributes.each do |a,b|
+          node.attributes.each do |a, b|
             reply[:transaction_result][a.underscore.to_sym] = b
           end
-          node.elements.each{|e| parse_element(reply[:transaction_result], e) } if node.has_elements?
+          node.elements.each { |e| parse_element(reply[:transaction_result], e) } if node.has_elements?
 
         when 'TransactionOutputData'
           reply[:transaction_output_data] = {}
-          node.attributes.each{|a,b| reply[:transaction_output_data][a.underscore.to_sym] = b }
-          node.elements.each{|e| parse_element(reply[:transaction_output_data], e) } if node.has_elements?
+          node.attributes.each { |a, b| reply[:transaction_output_data][a.underscore.to_sym] = b }
+          node.elements.each { |e| parse_element(reply[:transaction_output_data], e) } if node.has_elements?
         when 'CustomVariables'
           reply[:custom_variables] = {}
-          node.attributes.each{|a,b| reply[:custom_variables][a.underscore.to_sym] = b }
-          node.elements.each{|e| parse_element(reply[:custom_variables], e) } if node.has_elements?
+          node.attributes.each { |a, b| reply[:custom_variables][a.underscore.to_sym] = b }
+          node.elements.each { |e| parse_element(reply[:custom_variables], e) } if node.has_elements?
         when 'GatewayEntryPoints'
           reply[:gateway_entry_points] = {}
-          node.attributes.each{|a,b| reply[:gateway_entry_points][a.underscore.to_sym] = b }
-          node.elements.each{|e| parse_element(reply[:gateway_entry_points], e) } if node.has_elements?
+          node.attributes.each { |a, b| reply[:gateway_entry_points][a.underscore.to_sym] = b }
+          node.elements.each { |e| parse_element(reply[:gateway_entry_points], e) } if node.has_elements?
         else
           k = node.name.underscore.to_sym
           if node.has_elements?
             reply[k] = {}
-            node.elements.each{|e| parse_element(reply[k], e) }
+            node.elements.each { |e| parse_element(reply[k], e) }
           else
             if node.has_attributes?
               reply[k] = {}
-              node.attributes.each{|a,b| reply[k][a.underscore.to_sym] = b }
+              node.attributes.each { |a, b| reply[k][a.underscore.to_sym] = b }
             else
               reply[k] = node.text
             end

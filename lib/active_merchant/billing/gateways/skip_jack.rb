@@ -1,4 +1,3 @@
-#!ruby19
 # encoding: utf-8
 
 module ActiveMerchant #:nodoc:
@@ -261,7 +260,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, money, parameters)
-        response = parse( ssl_post( url_for(action), post_data(action, money, parameters) ), action )
+        response = parse(ssl_post(url_for(action), post_data(action, money, parameters)), action)
 
         # Pass along the original transaction id in the case an update transaction
         Response.new(response[:success], message_from(response, action), response,
@@ -275,7 +274,7 @@ module ActiveMerchant #:nodoc:
       def url_for(action)
         result = test? ? self.test_url : self.live_url
         result += advanced? && action == :authorization ? ADVANCED_PATH : BASIC_PATH
-        result += "?#{ACTIONS[action]}"
+        result + "?#{ACTIONS[action]}"
       end
 
       def add_credentials(params, action)
@@ -318,7 +317,7 @@ module ActiveMerchant #:nodoc:
       def authorize_response_map(body)
         lines = split_lines(body)
         keys, values = split_line(lines[0]), split_line(lines[1])
-        Hash[*(keys.zip(values).flatten)].symbolize_keys
+        Hash[*keys.zip(values).flatten].symbolize_keys
       end
 
       def parse_authorization_response(body)
@@ -333,7 +332,7 @@ module ActiveMerchant #:nodoc:
         keys = [ :szSerialNumber, :szErrorCode, :szNumberRecords]
         values = split_line(lines[0])[0..2]
 
-        result = Hash[*(keys.zip(values).flatten)]
+        result = Hash[*keys.zip(values).flatten]
 
         result[:szErrorMessage] = ''
         result[:success] = (result[:szErrorCode] == '0')
@@ -354,8 +353,8 @@ module ActiveMerchant #:nodoc:
       def post_data(action, money, params = {})
         add_credentials(params, action)
         add_amount(params, action, money)
-        sorted_params = params.to_a.sort{|a,b| a.to_s <=> b.to_s}.reverse
-        sorted_params.collect { |key, value| "#{key.to_s}=#{CGI.escape(value.to_s)}" }.join('&')
+        sorted_params = params.to_a.sort_by(&:to_s).reverse
+        sorted_params.collect { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
       end
 
       def add_transaction_id(post, transaction_id)
@@ -369,7 +368,7 @@ module ActiveMerchant #:nodoc:
         post[:OrderDescription] = options[:description]
 
         if order_items = options[:items]
-          post[:OrderString] = order_items.collect { |item| "#{item[:sku]}~#{item[:description].tr('~','-')}~#{item[:declared_value]}~#{item[:quantity]}~#{item[:taxable]}~~~~~~~~#{item[:tax_rate]}~||"}.join
+          post[:OrderString] = order_items.collect { |item| "#{item[:sku]}~#{item[:description].tr('~', '-')}~#{item[:declared_value]}~#{item[:quantity]}~#{item[:taxable]}~~~~~~~~#{item[:tax_rate]}~||" }.join
         else
           post[:OrderString] = '1~None~0.00~0~N~||'
         end

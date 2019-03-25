@@ -3,7 +3,7 @@ require 'nokogiri'
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
     class LitleGateway < Gateway
-      SCHEMA_VERSION = '9.12'
+      SCHEMA_VERSION = '9.14'
 
       self.test_url = 'https://www.testvantivcnp.com/sandbox/communicator/online'
       self.live_url = 'https://payments.vantivcnp.com/vap/communicator/online'
@@ -33,7 +33,7 @@ module ActiveMerchant #:nodoc:
             end
           end
         end
-       check?(payment_method) ? commit(:echeckSales, request, money) : commit(:sale, request, money)
+        check?(payment_method) ? commit(:echeckSales, request, money) : commit(:sale, request, money)
       end
 
       def authorize(money, payment_method, options={})
@@ -223,6 +223,7 @@ module ActiveMerchant #:nodoc:
         add_descriptor(doc, options)
         add_merchant_data(doc, options)
         add_debt_repayment(doc, options)
+        add_stored_credential_params(doc, options)
       end
 
       def add_merchant_data(doc, options={})
@@ -268,7 +269,7 @@ module ActiveMerchant #:nodoc:
           end
         elsif check?(payment_method)
           doc.echeck do
-            doc.accType(payment_method.account_type)
+            doc.accType(payment_method.account_type.capitalize)
             doc.accNum(payment_method.account_number)
             doc.routingNum(payment_method.routing_number)
             doc.checkNum(payment_method.number)
@@ -284,13 +285,45 @@ module ActiveMerchant #:nodoc:
             doc.cardholderAuthentication do
               doc.authenticationValue(payment_method.payment_cryptogram)
             end
-          elsif options[:order_source] && options[:order_source].start_with?('3ds')
+          elsif options[:order_source]&.start_with?('3ds')
             doc.cardholderAuthentication do
               doc.authenticationValue(options[:cavv]) if options[:cavv]
               doc.authenticationTransactionId(options[:xid]) if options[:xid]
             end
           end
         end
+      end
+
+      def add_stored_credential_params(doc, options={})
+        return unless options[:stored_credential]
+
+        if options[:stored_credential][:initial_transaction]
+          add_stored_credential_params_initial(doc, options)
+        else
+          add_stored_credential_params_used(doc, options)
+        end
+      end
+
+      def add_stored_credential_params_initial(doc, options)
+        case options[:stored_credential][:reason_type]
+        when 'unscheduled'
+          doc.processingType('initialCOF')
+        when 'installment'
+          doc.processingType('initialInstallment')
+        when 'recurring'
+          doc.processingType('initialRecurring')
+        end
+      end
+
+      def add_stored_credential_params_used(doc, options)
+        if options[:stored_credential][:reason_type] == 'unscheduled'
+          if options[:stored_credential][:initiator] == 'merchant'
+            doc.processingType('merchantInitiatedCOF')
+          else
+            doc.processingType('cardholderInitiatedCOF')
+          end
+        end
+        doc.originalNetworkTransactionId(options[:stored_credential][:network_transaction_id])
       end
 
       def add_billing_address(doc, payment_method, options)
@@ -332,8 +365,9 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_order_source(doc, payment_method, options)
-        if options[:order_source]
-          doc.orderSource(options[:order_source])
+        order_source = order_source(options)
+        if order_source
+          doc.orderSource(order_source)
         elsif payment_method.is_a?(NetworkTokenizationCreditCard) && payment_method.source == :apple_pay
           doc.orderSource('applepay')
         elsif payment_method.is_a?(NetworkTokenizationCreditCard) && payment_method.source == :android_pay
@@ -343,6 +377,30 @@ module ActiveMerchant #:nodoc:
         else
           doc.orderSource('ecommerce')
         end
+      end
+
+      def order_source(options={})
+        return options[:order_source] unless options[:stored_credential]
+        order_source = nil
+
+        case options[:stored_credential][:reason_type]
+        when 'unscheduled'
+          if options[:stored_credential][:initiator] == 'merchant'
+            # For merchant-initiated, we should always set order source to
+            # 'ecommerce'
+            order_source = 'ecommerce'
+          else
+            # For cardholder-initiated, we rely on #add_order_source's
+            # default logic to set orderSource appropriately
+            order_source = options[:order_source]
+          end
+        when 'installment'
+          order_source = 'installment'
+        when 'recurring'
+          order_source = 'recurring'
+        end
+
+        order_source
       end
 
       def add_pos(doc, payment_method)
@@ -364,7 +422,7 @@ module ActiveMerchant #:nodoc:
 
         doc = Nokogiri::XML(xml).remove_namespaces!
         doc.xpath("//litleOnlineResponse/#{kind}Response/*").each do |node|
-          if (node.elements.empty?)
+          if node.elements.empty?
             parsed[node.name.to_sym] = node.text
           else
             node.elements.each do |childnode|
@@ -402,7 +460,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def authorization_from(kind, parsed, money)
-        (kind == :registerToken) ? parsed[:litleToken] : "#{parsed[:litleTxnId]};#{kind};#{money}"
+        kind == :registerToken ? parsed[:litleToken] : "#{parsed[:litleTxnId]};#{kind};#{money}"
       end
 
       def split_authorization(authorization)

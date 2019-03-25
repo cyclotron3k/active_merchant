@@ -11,10 +11,10 @@ class GatewayTest < Test::Unit::TestCase
 
   def test_should_detect_if_a_card_is_supported
     Gateway.supported_cardtypes = [:visa, :bogus]
-    assert [:visa, :bogus].all? { |supported_cardtype| Gateway.supports?(supported_cardtype) }
+    assert([:visa, :bogus].all? { |supported_cardtype| Gateway.supports?(supported_cardtype) })
 
     Gateway.supported_cardtypes = []
-    assert_false [:visa, :bogus].all? { |invalid_cardtype| Gateway.supports?(invalid_cardtype) }
+    assert_false([:visa, :bogus].all? { |invalid_cardtype| Gateway.supports?(invalid_cardtype) })
   end
 
   def test_should_validate_supported_countries
@@ -46,11 +46,11 @@ class GatewayTest < Test::Unit::TestCase
   end
 
   def test_amount_style
-   assert_equal '10.34', @gateway.send(:amount, 1034)
+    assert_equal '10.34', @gateway.send(:amount, 1034)
 
-   assert_raise(ArgumentError) do
-     @gateway.send(:amount, '10.34')
-   end
+    assert_raise(ArgumentError) do
+      @gateway.send(:amount, '10.34')
+    end
   end
 
   def test_card_brand
@@ -115,7 +115,6 @@ class GatewayTest < Test::Unit::TestCase
     assert_equal [nil, nil], @gateway.send(:split_names, nil)
     assert_equal [nil, nil], @gateway.send(:split_names, ' ')
   end
-
 
   def test_supports_scrubbing?
     gateway = Gateway.new

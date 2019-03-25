@@ -110,7 +110,6 @@ module ActiveMerchant #:nodoc:
         add_order_id(post, order_id_from(authorization))
         add_amount(post, money, options)
 
-        #commit('Refund', post, options)
         commit('Credit', post, options)
       end
 
@@ -191,7 +190,7 @@ module ActiveMerchant #:nodoc:
         add_login_data(parameters)
         add_action(parameters, action, options)
 
-        post = parameters.collect{|key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
+        post = parameters.collect { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join('&')
         parse(ssl_post(url, post), parameters)
       end
 

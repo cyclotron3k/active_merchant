@@ -7,7 +7,7 @@ class MonerisTest < Test::Unit::TestCase
     Base.mode = :test
 
     @gateway = MonerisGateway.new(
-      :login => 'store1',
+      :login => 'store3',
       :password => 'yesguy'
     )
 
@@ -18,7 +18,7 @@ class MonerisTest < Test::Unit::TestCase
 
   def test_default_options
     assert_equal 7, @gateway.options[:crypt_type]
-    assert_equal 'store1', @gateway.options[:login]
+    assert_equal 'store3', @gateway.options[:login]
     assert_equal 'yesguy', @gateway.options[:password]
   end
 
@@ -28,6 +28,63 @@ class MonerisTest < Test::Unit::TestCase
     assert response = @gateway.purchase(100, @credit_card, @options)
     assert_success response
     assert_equal '58-0_3;1026.1', response.authorization
+  end
+
+  def test_successful_first_purchase_with_credential_on_file
+    gateway = MonerisGateway.new(
+      :login => 'store3',
+      :password => 'yesguy'
+    )
+    gateway.expects(:ssl_post).returns(successful_first_cof_purchase_response)
+    assert response = gateway.purchase(
+      @amount,
+      @credit_card,
+      @options.merge(
+        issuer_id: '',
+        payment_indicator: 'C',
+        payment_information: '0'
+      )
+    )
+    assert_success response
+    assert_equal 'Approved', response.message
+    assert_false response.authorization.blank?
+    assert_not_empty response.params['issuer_id']
+  end
+
+  def test_successful_subsequent_purchase_with_credential_on_file
+    gateway = MonerisGateway.new(
+      :login => 'store3',
+      :password => 'yesguy'
+    )
+    gateway.expects(:ssl_post).returns(successful_first_cof_authorize_response)
+    assert response = gateway.authorize(
+      @amount,
+      @credit_card,
+      @options.merge(
+        issuer_id: '',
+        payment_indicator: 'C',
+        payment_information: '0'
+      )
+    )
+    assert_success response
+    assert_equal 'Approved', response.message
+    assert_false response.authorization.blank?
+
+    gateway.expects(:ssl_post).returns(successful_subsequent_cof_purchase_response)
+
+    assert response2 = gateway.purchase(
+      @amount,
+      @credit_card,
+      @options.merge(
+        order_id: response.authorization,
+        issuer_id: response.params['issuer_id'],
+        payment_indicator: 'U',
+        payment_information: '2'
+      )
+    )
+    assert_success response2
+    assert_equal 'Approved', response2.message
+    assert_false response2.authorization.blank?
   end
 
   def test_successful_purchase_with_network_tokenization
@@ -63,53 +120,53 @@ class MonerisTest < Test::Unit::TestCase
   end
 
   def test_amount_style
-   assert_equal '10.34', @gateway.send(:amount, 1034)
+    assert_equal '10.34', @gateway.send(:amount, 1034)
 
-   assert_raise(ArgumentError) do
-     @gateway.send(:amount, '10.34')
-   end
+    assert_raise(ArgumentError) do
+      @gateway.send(:amount, '10.34')
+    end
   end
 
   def test_preauth_is_valid_xml
-   params = {
-     :order_id => 'order1',
-     :amount => '1.01',
-     :pan => '4242424242424242',
-     :expdate => '0303',
-     :crypt_type => 7,
-   }
+    params = {
+      :order_id => 'order1',
+      :amount => '1.01',
+      :pan => '4242424242424242',
+      :expdate => '0303',
+      :crypt_type => 7,
+    }
 
-   assert data = @gateway.send(:post_data, 'preauth', params)
-   assert REXML::Document.new(data)
-   assert_equal xml_capture_fixture.size, data.size
+    assert data = @gateway.send(:post_data, 'preauth', params)
+    assert REXML::Document.new(data)
+    assert_equal xml_capture_fixture.size, data.size
   end
 
   def test_purchase_is_valid_xml
-   params = {
-     :order_id => 'order1',
-     :amount => '1.01',
-     :pan => '4242424242424242',
-     :expdate => '0303',
-     :crypt_type => 7,
-   }
+    params = {
+      :order_id => 'order1',
+      :amount => '1.01',
+      :pan => '4242424242424242',
+      :expdate => '0303',
+      :crypt_type => 7,
+    }
 
-   assert data = @gateway.send(:post_data, 'purchase', params)
-   assert REXML::Document.new(data)
-   assert_equal xml_purchase_fixture.size, data.size
+    assert data = @gateway.send(:post_data, 'purchase', params)
+    assert REXML::Document.new(data)
+    assert_equal xml_purchase_fixture.size, data.size
   end
 
   def test_capture_is_valid_xml
-   params = {
-     :order_id => 'order1',
-     :amount => '1.01',
-     :pan => '4242424242424242',
-     :expdate => '0303',
-     :crypt_type => 7,
-   }
+    params = {
+      :order_id => 'order1',
+      :amount => '1.01',
+      :pan => '4242424242424242',
+      :expdate => '0303',
+      :crypt_type => 7,
+    }
 
-   assert data = @gateway.send(:post_data, 'preauth', params)
-   assert REXML::Document.new(data)
-   assert_equal xml_capture_fixture.size, data.size
+    assert data = @gateway.send(:post_data, 'preauth', params)
+    assert REXML::Document.new(data)
+    assert_equal xml_capture_fixture.size, data.size
   end
 
   def test_successful_verify
@@ -360,6 +417,92 @@ class MonerisTest < Test::Unit::TestCase
     RESPONSE
   end
 
+  def successful_first_cof_purchase_response
+    <<-RESPONSE
+<?xml version=\"1.0\" standalone=\"yes\"?>
+<?xml version=“1.0” standalone=“yes”?>
+<response>
+ <receipt>
+   <ReceiptId>a33ba7edd448b91ef8d2f85fea614b8d</ReceiptId>
+   <ReferenceNum>660114080015099160</ReferenceNum>
+   <ResponseCode>027</ResponseCode>
+   <ISO>01</ISO>
+   <AuthCode>822665</AuthCode>
+   <TransTime>07:43:28</TransTime>
+   <TransDate>2018-11-11</TransDate>
+   <TransType>00</TransType>
+   <Complete>true</Complete>
+   <Message>APPROVED           *                    =</Message>
+   <TransAmount>1.00</TransAmount>
+   <CardType>V</CardType>
+   <TransID>799655-0_11</TransID>
+   <TimedOut>false</TimedOut>
+   <BankTotals>null</BankTotals>
+   <Ticket>null</Ticket>
+   <IssuerId>355689484440192</IssuerId>
+   <IsVisaDebit>false</IsVisaDebit>
+ </receipt>
+</response>
+    RESPONSE
+  end
+
+  def successful_first_cof_authorize_response
+    <<-RESPONSE
+<?xml version=\"1.0\" standalone=\"yes\"?>
+<response>
+  <receipt>
+    <ReceiptId>8dbc28468af2007779bbede7ec1bab6c</ReceiptId>
+    <ReferenceNum>660109300018229130</ReferenceNum>
+    <ResponseCode>027</ResponseCode>
+    <ISO>01</ISO>
+    <AuthCode>718280</AuthCode>
+    <TransTime>07:50:53</TransTime>
+    <TransDate>2018-11-11</TransDate>
+    <TransType>01</TransType>
+    <Complete>true</Complete>
+    <Message>APPROVED           *                    =</Message>
+    <TransAmount>1.00</TransAmount>
+    <CardType>V</CardType>
+    <TransID>830724-0_11</TransID>
+    <TimedOut>false</TimedOut>
+    <BankTotals>null</BankTotals>
+    <Ticket>null</Ticket>
+    <MessageId>1A8315282537312</MessageId>
+    <IssuerId>550923784451193</IssuerId>
+    <IsVisaDebit>false</IsVisaDebit>
+  </receipt>
+</response>
+    RESPONSE
+  end
+
+  def successful_subsequent_cof_purchase_response
+    <<-RESPONSE
+<?xml version="1.0" standalone="yes"?>
+<response>
+  <receipt>
+    <ReceiptId>830724-0_11;8dbc28468af2007779bbede7ec1bab6c</ReceiptId>
+    <ReferenceNum>660109490014038930</ReferenceNum>
+    <ResponseCode>027</ResponseCode>
+    <ISO>01</ISO>
+    <AuthCode>111234</AuthCode>
+    <TransTime>07:50:54</TransTime>
+    <TransDate>2018-11-11</TransDate>
+    <TransType>00</TransType>
+    <Complete>true</Complete>
+    <Message>APPROVED           *                    =</Message>
+    <TransAmount>1.00</TransAmount>
+    <CardType>V</CardType>
+    <TransID>455422-0_11</TransID>
+    <TimedOut>false</TimedOut>
+    <BankTotals>null</BankTotals>
+    <Ticket>null</Ticket>
+    <IssuerId>762097792112819</IssuerId>
+    <IsVisaDebit>false</IsVisaDebit>
+  </receipt>
+</response>
+    RESPONSE
+  end
+
   def successful_purchase_network_tokenization
     <<-RESPONSE
 <?xml version="1.0"?>
@@ -572,11 +715,11 @@ class MonerisTest < Test::Unit::TestCase
   end
 
   def xml_purchase_fixture
-   '<request><store_id>store1</store_id><api_token>yesguy</api_token><purchase><amount>1.01</amount><pan>4242424242424242</pan><expdate>0303</expdate><crypt_type>7</crypt_type><order_id>order1</order_id></purchase></request>'
+    '<request><store_id>store1</store_id><api_token>yesguy</api_token><purchase><amount>1.01</amount><pan>4242424242424242</pan><expdate>0303</expdate><crypt_type>7</crypt_type><order_id>order1</order_id></purchase></request>'
   end
 
   def xml_capture_fixture
-   '<request><store_id>store1</store_id><api_token>yesguy</api_token><preauth><amount>1.01</amount><pan>4242424242424242</pan><expdate>0303</expdate><crypt_type>7</crypt_type><order_id>order1</order_id></preauth></request>'
+    '<request><store_id>store1</store_id><api_token>yesguy</api_token><preauth><amount>1.01</amount><pan>4242424242424242</pan><expdate>0303</expdate><crypt_type>7</crypt_type><order_id>order1</order_id></preauth></request>'
   end
 
   def pre_scrub

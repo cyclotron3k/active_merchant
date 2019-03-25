@@ -147,14 +147,13 @@ module ActiveMerchant #:nodoc:
           gsub(%r((\"cvv\\\":\\\")\d+), '\1[FILTERED]')
       end
 
-
       private
 
       def add_request_id(post)
         post[:id] = SecureRandom.hex(16)
       end
 
-      def add_timestamp()
+      def add_timestamp
         Time.now.getutc.strftime('%Y%m%d%H%M%S')
       end
 
@@ -302,27 +301,25 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(endpoint, post)
-        begin
-          raw_response = ssl_post(url() + endpoint, post_data(post), headers)
-          response = parse(raw_response)
-        rescue ResponseError => e
-          raw_response = e.response.body
-          response_error(raw_response)
-        rescue JSON::ParserError
-          unparsable_response(raw_response)
-        else
-          success = success_from(response)
-          Response.new(
-            success,
-            message_from(response),
-            response,
-            authorization: success ? authorization_from(response, post[:method]) : nil,
-            avs_result: success ? avs_from(response) : nil,
-            cvv_result: success ? cvv_from(response) : nil,
-            error_code: success ? nil : error_from(response),
-            test: test?
-          )
-        end
+        raw_response = ssl_post(url() + endpoint, post_data(post), headers)
+        response = parse(raw_response)
+      rescue ResponseError => e
+        raw_response = e.response.body
+        response_error(raw_response)
+      rescue JSON::ParserError
+        unparsable_response(raw_response)
+      else
+        success = success_from(response)
+        Response.new(
+          success,
+          message_from(response),
+          response,
+          authorization: success ? authorization_from(response, post[:method]) : nil,
+          avs_result: success ? avs_from(response) : nil,
+          cvv_result: success ? cvv_from(response) : nil,
+          error_code: success ? nil : error_from(response),
+          test: test?
+        )
       end
 
       def headers
@@ -392,18 +389,16 @@ module ActiveMerchant #:nodoc:
       end
 
       def response_error(raw_response)
-        begin
-          response = parse(raw_response)
-        rescue JSON::ParserError
-          unparsable_response(raw_response)
-        else
-          return Response.new(
-            false,
-            message_from(response),
-            response,
-            :test => test?
-          )
-        end
+        response = parse(raw_response)
+      rescue JSON::ParserError
+        unparsable_response(raw_response)
+      else
+        return Response.new(
+          false,
+          message_from(response),
+          response,
+          :test => test?
+        )
       end
 
       def unparsable_response(raw_response)

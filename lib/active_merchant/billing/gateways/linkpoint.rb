@@ -2,7 +2,6 @@ require 'rexml/document'
 
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
-
     # Initialization Options
     # :login                Your store number
     # :pem                  The text of your linkpoint PEM file. Note
@@ -170,7 +169,7 @@ module ActiveMerchant #:nodoc:
       def recurring(money, creditcard, options={})
         ActiveMerchant.deprecated RECURRING_DEPRECATION_MESSAGE
 
-        requires!(options, [:periodicity, :bimonthly, :monthly, :biweekly, :weekly, :yearly, :daily], :installments, :order_id )
+        requires!(options, [:periodicity, :bimonthly, :monthly, :biweekly, :weekly, :yearly, :daily], :installments, :order_id)
 
         options.update(
           :ordertype => 'SALE',
@@ -259,6 +258,7 @@ module ActiveMerchant #:nodoc:
       end
 
       private
+
       # Commit the transaction by posting the XML file to the LinkPoint server
       def commit(money, creditcard, options = {})
         response = parse(ssl_post(test? ? self.test_url : self.live_url, post_data(money, creditcard, options)))
@@ -266,8 +266,8 @@ module ActiveMerchant #:nodoc:
         Response.new(successful?(response), response[:message], response,
           :test => test?,
           :authorization => response[:ordernum],
-          :avs_result => { :code => response[:avs].to_s[2,1] },
-          :cvv_result => response[:avs].to_s[3,1]
+          :avs_result => { :code => response[:avs].to_s[2, 1] },
+          :cvv_result => response[:avs].to_s[3, 1]
         )
       end
 
@@ -324,7 +324,6 @@ module ActiveMerchant #:nodoc:
       # Set up the parameters hash just once so we don't have to do it
       # for every action.
       def parameters(money, creditcard, options = {})
-
         params = {
           :payment => {
             :subtotal => amount(options[:subtotal]),
@@ -341,7 +340,7 @@ module ActiveMerchant #:nodoc:
             :terminaltype => options[:terminaltype],
             :ip => options[:ip],
             :reference_number => options[:reference_number],
-            :recurring => options[:recurring] || 'NO',  #DO NOT USE if you are using the periodic billing option.
+            :recurring => options[:recurring] || 'NO',  # DO NOT USE if you are using the periodic billing option.
             :tdate => options[:tdate]
           },
           :orderoptions => {
@@ -418,7 +417,6 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(xml)
-
         # For reference, a typical response...
         # <r_csp></r_csp>
         # <r_time></r_time>
@@ -436,9 +434,9 @@ module ActiveMerchant #:nodoc:
         response = {:message => 'Global Error Receipt', :complete => false}
 
         xml = REXML::Document.new("<response>#{xml}</response>")
-        xml.root.elements.each do |node|
+        xml.root&.elements&.each do |node|
           response[node.name.downcase.sub(/^r_/, '').to_sym] = normalize(node.text)
-        end unless xml.root.nil?
+        end
 
         response
       end

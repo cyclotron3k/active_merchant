@@ -1,6 +1,5 @@
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
-
     class UsaEpayTransactionGateway < Gateway
       self.live_url = 'https://www.usaepay.com/gate'
       self.test_url = 'https://sandbox.usaepay.com/gate'
@@ -55,6 +54,9 @@ module ActiveMerchant #:nodoc:
           add_customer_data(post, options)
         end
         add_split_payments(post, options)
+        add_recurring_fields(post, options)
+        add_custom_fields(post, options)
+        add_line_items(post, options)
         add_test_mode(post, options)
 
         commit(:authorization, post)
@@ -65,12 +67,15 @@ module ActiveMerchant #:nodoc:
 
         add_amount(post, money)
         add_invoice(post, options)
-        add_payment(post, payment)
+        add_payment(post, payment, options)
         unless payment.respond_to?(:track_data) && payment.track_data.present?
           add_address(post, payment, options)
           add_customer_data(post, options)
         end
         add_split_payments(post, options)
+        add_recurring_fields(post, options)
+        add_custom_fields(post, options)
+        add_line_items(post, options)
         add_test_mode(post, options)
 
         payment.respond_to?(:routing_number) ? commit(:check_purchase, post) : commit(:purchase, post)
@@ -192,12 +197,19 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_invoice(post, options)
-        post[:invoice]      = options[:order_id]
+        post[:invoice]      = options[:invoice]
+        post[:orderid]      = options[:order_id]
         post[:description]  = options[:description]
       end
 
-      def add_payment(post, payment)
+      def add_payment(post, payment, options={})
         if payment.respond_to?(:routing_number)
+          post[:checkformat] = options[:check_format] if options[:check_format]
+          if payment.account_type
+            account_type = payment.account_type.to_s.capitalize
+            raise ArgumentError, 'account_type must be checking or savings' unless %w(Checking Savings).include?(account_type)
+            post[:accounttype] = account_type
+          end
           post[:account] = payment.account_number
           post[:routing] = payment.routing_number
           post[:name]    = payment.name unless payment.name.blank?
@@ -231,10 +243,57 @@ module ActiveMerchant #:nodoc:
         post['onError'] = options[:on_error] || 'Void'
       end
 
+      def add_recurring_fields(post, options)
+        return unless options[:recurring_fields].is_a?(Hash)
+        options[:recurring_fields].each do |key, value|
+          if value == true
+            value = 'yes'
+          elsif value == false
+            next
+          end
+
+          if key == :bill_amount
+            value = amount(value)
+          end
+
+          post[key.to_s.delete('_')] = value
+        end
+      end
+
+      # see: https://wiki.usaepay.com/developer/transactionapi#merchant_defined_custom_fields
+      def add_custom_fields(post, options)
+        return unless options[:custom_fields].is_a?(Hash)
+
+        options[:custom_fields].each do |index, custom|
+          raise ArgumentError.new('Cannot specify custom field with index 0') if index.to_s.to_i.zero?
+
+          post["custom#{index}"] = custom
+        end
+      end
+
+      # see: https://wiki.usaepay.com/developer/transactionapi#line_item_details
+      def add_line_items(post, options)
+        return unless options[:line_items].is_a?(Array)
+        options[:line_items].each_with_index do |line_item, index|
+          %w(product_ref_num sku qty name description taxable tax_rate tax_amount commodity_code discount_rate discount_amount).each do |key|
+            post["line#{index}#{key.delete('_')}"] = line_item[key.to_sym] if line_item.has_key?(key.to_sym)
+          end
+
+          {
+            quantity: 'qty',
+            unit: 'um',
+          }.each do |key, umkey|
+            post["line#{index}#{umkey}"] = line_item[key.to_sym] if line_item.has_key?(key.to_sym)
+          end
+
+          post["line#{index}cost"] = amount(line_item[:cost])
+        end
+      end
+
       def parse(body)
         fields = {}
         for line in body.split('&')
-          key, value = *line.scan( %r{^(\w+)\=(.*)$} ).flatten
+          key, value = *line.scan(%r{^(\w+)\=(.*)$}).flatten
           fields[key] = CGI.unescape(value.to_s)
         end
 
@@ -253,7 +312,7 @@ module ActiveMerchant #:nodoc:
           :error_code       => fields['UMerrorcode'],
           :acs_url          => fields['UMacsurl'],
           :payload          => fields['UMpayload']
-        }.delete_if{|k, v| v.nil?}
+        }.delete_if { |k, v| v.nil? }
       end
 
       def commit(action, parameters)

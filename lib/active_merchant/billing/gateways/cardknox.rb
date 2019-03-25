@@ -3,7 +3,7 @@ module ActiveMerchant #:nodoc:
     class CardknoxGateway < Gateway
       self.live_url = 'https://x1.cardknox.com/gateway'
 
-      self.supported_countries = ['US','CA','GB']
+      self.supported_countries = ['US', 'CA', 'GB']
       self.default_currency = 'USD'
       self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
 
@@ -81,8 +81,8 @@ module ActiveMerchant #:nodoc:
 
       def verify(credit_card, options={})
         MultiResponse.run(:use_first_response) do |r|
-         r.process { authorize(100, credit_card, options) }
-         r.process(:ignore_result) { void(r.authorization, options) }
+          r.process { authorize(100, credit_card, options) }
+          r.process(:ignore_result) { void(r.authorization, options) }
         end
       end
 
@@ -255,7 +255,7 @@ module ActiveMerchant #:nodoc:
       def parse(body)
         fields = {}
         for line in body.split('&')
-          key, value = *line.scan( %r{^(\w+)\=(.*)$} ).flatten
+          key, value = *line.scan(%r{^(\w+)\=(.*)$}).flatten
           fields[key] = CGI.unescape(value.to_s)
         end
 
@@ -276,14 +276,13 @@ module ActiveMerchant #:nodoc:
           amount:            fields['xAuthAmount'],
           masked_card_num:   fields['xMaskedCardNumber'],
           masked_account_number: fields['MaskedAccountNumber']
-        }.delete_if{|k, v| v.nil?}
+        }.delete_if { |k, v| v.nil? }
       end
-
 
       def commit(action, source_type, parameters)
         response = parse(ssl_post(live_url, post_data(COMMANDS[source_type][action], parameters)))
 
-       Response.new(
+        Response.new(
           (response[:status] == 'Approved'),
           message_from(response),
           response,
@@ -312,7 +311,7 @@ module ActiveMerchant #:nodoc:
           Key: @options[:api_key],
           Version: '4.5.4',
           SoftwareName: 'Active Merchant',
-          SoftwareVersion: "#{ActiveMerchant::VERSION}",
+          SoftwareVersion: ActiveMerchant::VERSION.to_s,
           Command: command,
         }
 
@@ -321,7 +320,7 @@ module ActiveMerchant #:nodoc:
         initial_parameters[:Hash] = "s/#{seed}/#{hash}/n" unless @options[:pin].blank?
         parameters = initial_parameters.merge(parameters)
 
-        parameters.reject{|k, v| v.blank?}.collect{ |key, value| "x#{key}=#{CGI.escape(value.to_s)}" }.join('&')
+        parameters.reject { |k, v| v.blank? }.collect { |key, value| "x#{key}=#{CGI.escape(value.to_s)}" }.join('&')
       end
     end
   end

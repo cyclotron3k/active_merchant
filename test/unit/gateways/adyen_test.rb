@@ -19,6 +19,17 @@ class AdyenTest < Test::Unit::TestCase
       :brand => 'visa'
     )
 
+    @elo_credit_card = credit_card('5066 9911 1111 1118',
+      :month => 10,
+      :year => 2020,
+      :first_name => 'John',
+      :last_name => 'Smith',
+      :verification_value => '737',
+      :brand => 'elo'
+    )
+
+    @three_ds_enrolled_card = credit_card('4212345678901237', brand: :visa)
+
     @apple_pay_card = network_tokenization_credit_card('4111111111111111',
       :payment_cryptogram => 'YwAAAAAABaYcCMX/OhNRQAAAAAA=',
       :month              => '08',
@@ -33,7 +44,8 @@ class AdyenTest < Test::Unit::TestCase
       billing_address: address(),
       shopper_reference: 'John Smith',
       order_id: '345123',
-      installments: 2
+      installments: 2,
+      recurring_processing_model: 'CardOnFile'
     }
   end
 
@@ -63,7 +75,22 @@ class AdyenTest < Test::Unit::TestCase
     assert_success response
 
     assert_equal '#7914775043909934#', response.authorization
+    assert_equal 'R', response.avs_result['code']
+    assert_equal 'M', response.cvv_result['code']
     assert response.test?
+  end
+
+  def test_successful_authorize_with_3ds
+    @gateway.expects(:ssl_post).returns(successful_authorize_with_3ds_response)
+
+    response = @gateway.authorize(@amount, @three_ds_enrolled_card, @options.merge(execute_threed: true))
+    assert response.test?
+    refute response.authorization.blank?
+    assert_equal '#8835440446784145#', response.authorization
+    assert_equal response.params['resultCode'], 'RedirectShopper'
+    refute response.params['issuerUrl'].blank?
+    refute response.params['md'].blank?
+    refute response.params['paRequest'].blank?
   end
 
   def test_failed_authorize
@@ -99,11 +126,66 @@ class AdyenTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_successful_purchase_with_elo_card
+    response = stub_comms do
+      @gateway.purchase(@amount, @elo_credit_card, @options)
+    end.respond_with(successful_authorize_with_elo_response, successful_capture_with_elo_repsonse)
+    assert_success response
+    assert_equal '8835511210681145#8835511210689965#', response.authorization
+    assert response.test?
+  end
+
+  def test_successful_maestro_purchase
+    response = stub_comms do
+      @gateway.purchase(@amount, @credit_card, @options.merge({selected_brand: 'maestro', overwrite_brand: 'true'}))
+    end.check_request do |endpoint, data, headers|
+      if endpoint =~ /authorise/
+        assert_match(/"overwriteBrand":true/, data)
+        assert_match(/"selectedBrand":"maestro"/, data)
+      end
+    end.respond_with(successful_authorize_response, successful_capture_response)
+    assert_success response
+    assert_equal '7914775043909934#8814775564188305#', response.authorization
+    assert response.test?
+  end
+
   def test_installments_sent
     stub_comms do
       @gateway.authorize(@amount, @credit_card, @options)
     end.check_request do |endpoint, data, headers|
       assert_equal 2, JSON.parse(data)['installments']['value']
+    end.respond_with(successful_authorize_response)
+  end
+
+  def test_custom_routing_sent
+    stub_comms do
+      @gateway.authorize(@amount, @credit_card, @options.merge({custom_routing_flag: 'abcdefg'}))
+    end.check_request do |endpoint, data, headers|
+      assert_equal 'abcdefg', JSON.parse(data)['additionalData']['customRoutingFlag']
+    end.respond_with(successful_authorize_response)
+  end
+
+  def test_risk_data_sent
+    stub_comms do
+      @gateway.authorize(@amount, @credit_card, @options.merge({risk_data: {'operatingSystem' => 'HAL9000'}}))
+    end.check_request do |endpoint, data, headers|
+      assert_equal 'HAL9000', JSON.parse(data)['additionalData']['riskdata.operatingSystem']
+    end.respond_with(successful_authorize_response)
+  end
+
+  def test_risk_data_complex_data
+    stub_comms do
+      risk_data = {
+        'deliveryMethod' => 'express',
+        'basket.item.productTitle' => 'Blue T Shirt',
+        'promotions.promotion.promotionName' => 'Big Sale promotion'
+      }
+      @gateway.authorize(@amount, @credit_card, @options.merge({risk_data: risk_data}))
+    end.check_request do |endpoint, data, headers|
+      parsed = JSON.parse(data)
+      assert_equal 'express', parsed['additionalData']['riskdata.deliveryMethod']
+      assert_equal 'Blue T Shirt', parsed['additionalData']['riskdata.basket.item.productTitle']
+      assert_equal 'Big Sale promotion', parsed['additionalData']['riskdata.promotions.promotion.promotionName']
     end.respond_with(successful_authorize_response)
   end
 
@@ -156,8 +238,11 @@ class AdyenTest < Test::Unit::TestCase
   end
 
   def test_successful_store
-    @gateway.expects(:ssl_post).returns(successful_store_response)
-    response = @gateway.store(@credit_card, @options)
+    response = stub_comms do
+      @gateway.store(@credit_card, @options)
+    end.check_request do |endpoint, data, headers|
+      assert_equal 'CardOnFile', JSON.parse(data)['recurringProcessingModel']
+    end.respond_with(successful_store_response)
     assert_success response
     assert_equal '#8835205392522157#8315202663743702', response.authorization
   end
@@ -211,21 +296,52 @@ class AdyenTest < Test::Unit::TestCase
     post = {:card => {:billingAddress => {}}}
     @options[:billing_address].delete(:address1)
     @options[:billing_address].delete(:address2)
+    @options[:billing_address].delete(:state)
     @gateway.send(:add_address, post, @options)
     assert_equal 'N/A', post[:card][:billingAddress][:street]
     assert_equal 'N/A', post[:card][:billingAddress][:houseNumberOrName]
+    assert_equal 'N/A', post[:card][:billingAddress][:stateOrProvince]
     assert_equal @options[:billing_address][:zip], post[:card][:billingAddress][:postalCode]
     assert_equal @options[:billing_address][:city], post[:card][:billingAddress][:city]
-    assert_equal @options[:billing_address][:state], post[:card][:billingAddress][:stateOrProvince]
     assert_equal @options[:billing_address][:country], post[:card][:billingAddress][:country]
+  end
+
+  def test_authorize_with_network_tokenization_credit_card_no_name
+    @apple_pay_card.first_name = nil
+    @apple_pay_card.last_name = nil
+    response = stub_comms do
+      @gateway.authorize(@amount, @apple_pay_card, @options)
+    end.check_request do |endpoint, data, headers|
+      assert_equal 'Not Provided', JSON.parse(data)['card']['holderName']
+    end.respond_with(successful_authorize_response)
+    assert_success response
   end
 
   def test_authorize_with_network_tokenization_credit_card
     response = stub_comms do
       @gateway.authorize(@amount, @apple_pay_card, @options)
     end.check_request do |endpoint, data, headers|
-      assert_equal 'YwAAAAAABaYcCMX/OhNRQAAAAAA=', JSON.parse(data)['mpiData']['cavv']
-      assert_equal '07', JSON.parse(data)['mpiData']['eci']
+      parsed = JSON.parse(data)
+      assert_equal 'YwAAAAAABaYcCMX/OhNRQAAAAAA=', parsed['mpiData']['cavv']
+      assert_equal '07', parsed['mpiData']['eci']
+      assert_equal 'applepay', parsed['additionalData']['paymentdatasource.type']
+    end.respond_with(successful_authorize_response)
+    assert_success response
+  end
+
+  def test_extended_avs_response
+    response = stub_comms do
+      @gateway.verify(@credit_card, @options)
+    end.respond_with(extended_avs_response)
+    assert_equal 'Card member\'s name, billing address, and billing postal code match.', response.avs_result['message']
+  end
+
+  def test_optional_idempotency_key_header
+    options = @options.merge(:idempotency_key => 'test123')
+    response = stub_comms do
+      @gateway.authorize(@amount, @credit_card, options)
+    end.check_request do |endpoint, data, headers|
+      assert headers['Idempotency-Key']
     end.respond_with(successful_authorize_response)
     assert_success response
   end
@@ -376,14 +492,42 @@ class AdyenTest < Test::Unit::TestCase
     RESPONSE
   end
 
+  def successful_authorize_with_elo_response
+    <<-RESPONSE
+    {
+      "pspReference":"8835511210681145",
+      "resultCode":"Authorised",
+      "authCode":"98696"
+    }
+    RESPONSE
+  end
+
+  def successful_capture_with_elo_repsonse
+    <<-RESPONSE
+    {
+      "pspReference":"8835511210689965",
+      "response":"[capture-received]"
+    }
+    RESPONSE
+  end
+
   def successful_authorize_response
     <<-RESPONSE
     {
+      "additionalData": {
+        "cvcResult": "1 Matches",
+        "avsResult": "0 Unknown",
+        "cvcResultRaw": "M"
+      },
       "pspReference":"7914775043909934",
       "resultCode":"Authorised",
       "authCode":"50055"
     }
     RESPONSE
+  end
+
+  def successful_authorize_with_3ds_response
+    '{"pspReference":"8835440446784145","resultCode":"RedirectShopper","issuerUrl":"https:\\/\\/test.adyen.com\\/hpp\\/3d\\/validate.shtml","md":"djIhcWk3MUhlVFlyQ1h2UC9NWmhpVm10Zz09IfIxi5eDMZgG72AUXy7PEU86esY68wr2cunaFo5VRyNPuWg3ZSvEIFuielSuoYol5WhjCH+R6EJTjVqY8eCTt+0wiqHd5btd82NstIc8idJuvg5OCu2j8dYo0Pg7nYxW\\/2vXV9Wy\\/RYvwR8tFfyZVC\\/U2028JuWtP2WxrBTqJ6nV2mDoX2chqMRSmX8xrL6VgiLoEfzCC\\/c+14r77+whHP0Mz96IGFf4BIA2Qo8wi2vrTlccH\\/zkLb5hevvV6QH3s9h0\\/JibcUrpoXH6M903ulGuikTr8oqVjEB9w8\\/WlUuxukHmqqXqAeOPA6gScehs6SpRm45PLpLysCfUricEIDhpPN1QCjjgw8+qVf3Ja1SzwfjCVocU","paRequest":"eNpVUctuwjAQ\\/BXaD2Dt4JCHFkspqVQOBChwriJnBanIAyepoF9fG5LS+jQz612PZ3F31ETxllSnSeKSmiY90CjPZs+h709cIZgQU88XXLjPEtfRO50lfpFu8qqUfMzGDsJATbtWx7RsJabq\\/LJIJHcmwp0i9BQL0otY7qhp10URqXOXa9IIdxnLtCC5jz6i+VO4rY2v7HSdr5ZOIBBuNVRVV7b6Kn3BEAaCnT7JY9vWIUDTt41VVSDYAsLD1bqzqDGDLnkmV\\/HhO9lt2DLesORTiSR+ZckmsmeGYG9glrYkHcZ97jB35PCQe6HrI9x0TAvrQO638cgkYRz1Atb2nehOuC38FdBEralUwy8GhnSpq5LMDRPpL0Z4mJ6\\/2WBVa7ISzj1azw+YQZ6N+FawU3ITCg9YcBtjCYJthX570G\\/ZoH\\/b\\/wFlSqpp"}'
   end
 
   def failed_authorize_response
@@ -491,6 +635,12 @@ class AdyenTest < Test::Unit::TestCase
   def failed_store_response
     <<-RESPONSE
     {"pspReference":"8835205393394754","refusalReason":"Refused","resultCode":"Refused"}
+    RESPONSE
+  end
+
+  def extended_avs_response
+    <<-RESPONSE
+    {\"additionalData\":{\"cvcResult\":\"1 Matches\",\"cvcResultRaw\":\"Y\",\"avsResult\":\"20 Name, address and zip match\",\"avsResultRaw\":\"M\"}}
     RESPONSE
   end
 end

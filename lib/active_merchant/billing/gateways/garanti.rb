@@ -5,7 +5,7 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://sanalposprovtest.garanti.com.tr/VPServlet'
 
       # The countries the gateway supports merchants from as 2 digit ISO country codes
-      self.supported_countries = ['US','TR']
+      self.supported_countries = ['US', 'TR']
 
       # The card types supported by the payment gateway
       self.supported_cardtypes = [:visa, :master, :american_express, :discover]
@@ -29,7 +29,6 @@ module ActiveMerchant #:nodoc:
         'GBP' => 826,
         'JPY' => 392
       }
-
 
       def initialize(options = {})
         requires!(options, :login, :password, :terminal_id, :merchant_id)
@@ -182,7 +181,7 @@ module ActiveMerchant #:nodoc:
       def add_address(xml, address)
         xml.tag! 'Name', normalize(address[:name])
         address_text = address[:address1]
-        address_text << " #{ address[:address2]}" if address[:address2]
+        address_text << " #{address[:address2]}" if address[:address2]
         xml.tag! 'Text', normalize(address_text)
         xml.tag! 'City', normalize(address[:city])
         xml.tag! 'District', normalize(address[:state])
@@ -196,7 +195,7 @@ module ActiveMerchant #:nodoc:
         return unless text
 
         if ActiveSupport::Inflector.method(:transliterate).arity == -2
-          ActiveSupport::Inflector.transliterate(text,'')
+          ActiveSupport::Inflector.transliterate(text, '')
         else
           text.gsub(/[^\x00-\x7F]+/, '')
         end
@@ -215,7 +214,7 @@ module ActiveMerchant #:nodoc:
         CURRENCY_CODES[currency] || CURRENCY_CODES[default_currency]
       end
 
-      def commit(money,request)
+      def commit(money, request)
         url = test? ? self.test_url : self.live_url
         raw_response = ssl_post(url, 'data=' + request)
         response = parse(raw_response)
@@ -223,10 +222,10 @@ module ActiveMerchant #:nodoc:
         success = success?(response)
 
         Response.new(success,
-                     success ? 'Approved' : "Declined (Reason: #{response[:reason_code]} - #{response[:error_msg]} - #{response[:sys_err_msg]})",
-                     response,
-                     :test => test?,
-                     :authorization => response[:order_id])
+          success ? 'Approved' : "Declined (Reason: #{response[:reason_code]} - #{response[:error_msg]} - #{response[:sys_err_msg]})",
+          response,
+          :test => test?,
+          :authorization => response[:order_id])
       end
 
       def parse(body)
@@ -241,7 +240,7 @@ module ActiveMerchant #:nodoc:
 
       def parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|element| parse_element(response, element) }
+          node.elements.each { |element| parse_element(response, element) }
         else
           response[node.name.underscore.to_sym] = node.text
         end
@@ -258,4 +257,3 @@ module ActiveMerchant #:nodoc:
     end
   end
 end
-

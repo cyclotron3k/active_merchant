@@ -12,7 +12,7 @@ module ActiveMerchant #:nodoc:
 
       self.default_currency = 'AUD'
 
-      #accepted money format
+      # accepted money format
       self.money_format = :cents
 
       # The homepage URL of the gateway
@@ -136,7 +136,6 @@ module ActiveMerchant #:nodoc:
         post[:invoiceDescription] = options[:description]
       end
 
-
       # add credit card details to be stored by eway. NOTE eway requires "title" field
       def add_creditcard(post, creditcard)
         post[:CCNumber]  = creditcard.number
@@ -151,7 +150,7 @@ module ActiveMerchant #:nodoc:
         reply = {}
         xml = REXML::Document.new(body)
         if root = REXML::XPath.first(xml, '//soap:Fault') then
-           reply=parse_fault(root)
+          reply=parse_fault(root)
         else
           if root = REXML::XPath.first(xml, '//ProcessPaymentResponse/ewayResponse') then
             # Successful payment
@@ -166,7 +165,7 @@ module ActiveMerchant #:nodoc:
                 reply[:success]=true
               else
                 if root = REXML::XPath.first(xml, '//UpdateCustomerResult') then
-                  if root.text.downcase == 'true' then
+                  if root.text.casecmp('true').zero? then
                     reply[:message]='OK'
                     reply[:success]=true
                   else
@@ -232,34 +231,34 @@ module ActiveMerchant #:nodoc:
       def soap_request(arguments, action)
         # eWay demands all fields be sent, but contain an empty string if blank
         post = case action
-                when 'QueryCustomer'
-                  arguments
-                when 'ProcessPayment'
-                  default_payment_fields.merge(arguments)
-                when 'CreateCustomer'
-                  default_customer_fields.merge(arguments)
-                when 'UpdateCustomer'
-                  default_customer_fields.merge(arguments)
+               when 'QueryCustomer'
+                 arguments
+               when 'ProcessPayment'
+                 default_payment_fields.merge(arguments)
+               when 'CreateCustomer'
+                 default_customer_fields.merge(arguments)
+               when 'UpdateCustomer'
+                 default_customer_fields.merge(arguments)
                end
 
         xml = Builder::XmlMarkup.new :indent => 2
-          xml.instruct!
-          xml.tag! 'soap12:Envelope', {'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance', 'xmlns:xsd' => 'http://www.w3.org/2001/XMLSchema', 'xmlns:soap12' => 'http://www.w3.org/2003/05/soap-envelope'} do
-            xml.tag! 'soap12:Header' do
-              xml.tag! 'eWAYHeader', {'xmlns' => 'https://www.eway.com.au/gateway/managedpayment'} do
-                xml.tag! 'eWAYCustomerID', @options[:login]
-                xml.tag! 'Username', @options[:username]
-                xml.tag! 'Password', @options[:password]
-              end
+        xml.instruct!
+        xml.tag! 'soap12:Envelope', {'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance', 'xmlns:xsd' => 'http://www.w3.org/2001/XMLSchema', 'xmlns:soap12' => 'http://www.w3.org/2003/05/soap-envelope'} do
+          xml.tag! 'soap12:Header' do
+            xml.tag! 'eWAYHeader', {'xmlns' => 'https://www.eway.com.au/gateway/managedpayment'} do
+              xml.tag! 'eWAYCustomerID', @options[:login]
+              xml.tag! 'Username', @options[:username]
+              xml.tag! 'Password', @options[:password]
             end
-            xml.tag! 'soap12:Body' do |x|
-              x.tag! "#{action}", {'xmlns' => 'https://www.eway.com.au/gateway/managedpayment'} do |y|
-                post.each do |key, value|
-                  y.tag! "#{key}", "#{value}"
-                end
+          end
+          xml.tag! 'soap12:Body' do |x|
+            x.tag! action, {'xmlns' => 'https://www.eway.com.au/gateway/managedpayment'} do |y|
+              post.each do |key, value|
+                y.tag! key, value
               end
             end
           end
+        end
         xml.target!
       end
 

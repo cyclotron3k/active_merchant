@@ -2,7 +2,6 @@ require 'rexml/document'
 
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
-
     class EfsnetGateway < Gateway
       self.supported_countries = ['US']
       self.supported_cardtypes = [:visa, :master, :american_express, :discover]
@@ -100,16 +99,16 @@ module ActiveMerchant #:nodoc:
           :client_ip_address => options[:ip]
 
         }
-        add_creditcard(post,creditcard)
-        add_address(post,options)
+        add_creditcard(post, creditcard)
+        add_address(post, options)
         post
       end
 
       def format_reference_number(number)
-        number.to_s.slice(0,12)
+        number.to_s.slice(0, 12)
       end
 
-      def add_address(post,options)
+      def add_address(post, options)
         if address = options[:billing_address] || options[:address]
           if address[:address2]
             post[:billing_address]    = address[:address1].to_s << ' ' <<  address[:address2].to_s
@@ -143,7 +142,6 @@ module ActiveMerchant #:nodoc:
         post[:expiration_year]  = sprintf('%.4i', creditcard.year)[-2..-1]
       end
 
-
       def commit(action, parameters)
         response = parse(ssl_post(test? ? self.test_url : self.live_url, post_data(action, parameters), 'Content-Type' => 'text/xml'))
 
@@ -169,9 +167,7 @@ module ActiveMerchant #:nodoc:
         xml = REXML::Document.new(xml)
 
         xml.elements.each('//Reply//TransactionReply/*') do |node|
-
           response[node.name.underscore.to_sym] = normalize(node.text)
-
         end unless xml.root.nil?
 
         response
@@ -204,15 +200,15 @@ module ActiveMerchant #:nodoc:
       CREDIT_CARD_FIELDS =  %w(AuthorizationNumber ClientIpAddress BillingAddress BillingCity BillingState BillingPostalCode BillingCountry BillingName CardVerificationValue ExpirationMonth ExpirationYear ReferenceNumber TransactionAmount AccountNumber )
 
       ACTIONS = {
-           :credit_card_authorize		=> CREDIT_CARD_FIELDS,
-           :credit_card_charge			=> CREDIT_CARD_FIELDS,
-           :credit_card_voice_authorize		=> CREDIT_CARD_FIELDS,
-           :credit_card_capture			=> CREDIT_CARD_FIELDS,
-           :credit_card_credit			=> CREDIT_CARD_FIELDS + ['OriginalTransactionAmount'],
-           :credit_card_refund			=> %w(ReferenceNumber TransactionAmount OriginalTransactionAmount OriginalTransactionID ClientIpAddress),
-           :void_transaction			=> %w(ReferenceNumber TransactionID),
-           :credit_card_settle			=> %w(ReferenceNumber TransactionAmount OriginalTransactionAmount OriginalTransactionID ClientIpAddress),
-           :system_check			=> %w(SystemCheck),
+           :credit_card_authorize       => CREDIT_CARD_FIELDS,
+           :credit_card_charge          => CREDIT_CARD_FIELDS,
+           :credit_card_voice_authorize => CREDIT_CARD_FIELDS,
+           :credit_card_capture         => CREDIT_CARD_FIELDS,
+           :credit_card_credit          => CREDIT_CARD_FIELDS + ['OriginalTransactionAmount'],
+           :credit_card_refund          => %w(ReferenceNumber TransactionAmount OriginalTransactionAmount OriginalTransactionID ClientIpAddress),
+           :void_transaction            => %w(ReferenceNumber TransactionID),
+           :credit_card_settle          => %w(ReferenceNumber TransactionAmount OriginalTransactionAmount OriginalTransactionID ClientIpAddress),
+           :system_check                => %w(SystemCheck),
       }
     end
   end

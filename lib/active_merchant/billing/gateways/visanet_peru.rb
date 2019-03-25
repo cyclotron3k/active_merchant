@@ -82,7 +82,7 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      CURRENCY_CODES = Hash.new{|h,k| raise ArgumentError.new("Unsupported currency: #{k}")}
+      CURRENCY_CODES = Hash.new { |h, k| raise ArgumentError.new("Unsupported currency: #{k}") }
       CURRENCY_CODES['USD'] = 840
       CURRENCY_CODES['PEN'] = 604
 
@@ -140,24 +140,22 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, params, options={})
-        begin
-          raw_response = ssl_request(method(action), url(action, params, options), params.to_json, headers)
-          response = parse(raw_response)
-        rescue ResponseError => e
-          raw_response = e.response.body
-          response_error(raw_response, options, action)
-        rescue JSON::ParserError
-          unparsable_response(raw_response)
-        else
-          Response.new(
-            success_from(response),
-            message_from(response, options, action),
-            response,
-            :test => test?,
-            :authorization => authorization_from(params, response, options),
-            :error_code => response['errorCode']
-          )
-        end
+        raw_response = ssl_request(method(action), url(action, params, options), params.to_json, headers)
+        response = parse(raw_response)
+      rescue ResponseError => e
+        raw_response = e.response.body
+        response_error(raw_response, options, action)
+      rescue JSON::ParserError
+        unparsable_response(raw_response)
+      else
+        Response.new(
+          success_from(response),
+          message_from(response, options, action),
+          response,
+          :test => test?,
+          :authorization => authorization_from(params, response, options),
+          :error_code => response['errorCode']
+        )
       end
 
       def headers
@@ -168,9 +166,9 @@ module ActiveMerchant #:nodoc:
       end
 
       def url(action, params, options={})
-        if (action == 'authorize')
+        if action == 'authorize'
           "#{base_url}/#{@options[:merchant_id]}"
-        elsif (action == 'refund')
+        elsif action == 'refund'
           "#{base_url}/#{@options[:merchant_id]}/#{action}/#{options[:transaction_id]}"
         else
           "#{base_url}/#{@options[:merchant_id]}/#{action}/#{params[:purchaseNumber]}"
@@ -178,7 +176,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def method(action)
-        (%w(authorize refund).include? action) ? :post : :put
+        %w(authorize refund).include?(action) ? :post : :put
       end
 
       def authorization_from(params, response, options)
@@ -211,20 +209,18 @@ module ActiveMerchant #:nodoc:
       end
 
       def response_error(raw_response, options, action)
-        begin
-          response = parse(raw_response)
-        rescue JSON::ParserError
-          unparsable_response(raw_response)
-        else
-          return Response.new(
-            false,
-            message_from(response, options, action),
-            response,
-            :test => test?,
-            :authorization => response['transactionUUID'],
-            :error_code => response['errorCode']
-          )
-        end
+        response = parse(raw_response)
+      rescue JSON::ParserError
+        unparsable_response(raw_response)
+      else
+        return Response.new(
+          false,
+          message_from(response, options, action),
+          response,
+          :test => test?,
+          :authorization => response['transactionUUID'],
+          :error_code => response['errorCode']
+        )
       end
 
       def unparsable_response(raw_response)

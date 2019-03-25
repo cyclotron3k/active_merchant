@@ -34,10 +34,12 @@ module ActiveMerchant
         params = payment_method.is_a?(String) ? { transaction_type: 'recurring' } : { transaction_type: 'purchase' }
 
         add_invoice(params, options)
+        add_reversal_id(params, options)
         add_payment_method(params, payment_method, options)
         add_address(params, options)
         add_amount(params, amount, options)
         add_soft_descriptors(params, options)
+        add_stored_credentials(params, options)
 
         commit(params, options)
       end
@@ -46,10 +48,12 @@ module ActiveMerchant
         params = {transaction_type: 'authorize'}
 
         add_invoice(params, options)
+        add_reversal_id(params, options)
         add_payment_method(params, payment_method, options)
         add_address(params, options)
         add_amount(params, amount, options)
         add_soft_descriptors(params, options)
+        add_stored_credentials(params, options)
 
         commit(params, options)
       end
@@ -84,7 +88,7 @@ module ActiveMerchant
       def void(authorization, options = {})
         params = {transaction_type: 'void'}
 
-        add_authorization_info(params, authorization)
+        add_authorization_info(params, authorization, options)
         add_amount(params, amount_from_authorization(authorization), options)
 
         commit(params, options)
@@ -92,7 +96,7 @@ module ActiveMerchant
 
       def verify(credit_card, options={})
         MultiResponse.run(:use_first_response) do |r|
-          r.process { authorize(100, credit_card, options) }
+          r.process { authorize(0, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
         end
       end
@@ -123,15 +127,24 @@ module ActiveMerchant
         params[:merchant_ref] = options[:order_id]
       end
 
+      def add_reversal_id(params, options)
+        params[:reversal_id] = options[:reversal_id] if options[:reversal_id]
+      end
+
       def amount_from_authorization(authorization)
         authorization.split('|').last.to_i
       end
 
-      def add_authorization_info(params, authorization)
+      def add_authorization_info(params, authorization, options = {})
         transaction_id, transaction_tag, method, _ = authorization.split('|')
-        params[:transaction_id] = transaction_id
-        params[:transaction_tag] = transaction_tag
-        params[:method] = (method == 'token') ? 'credit_card' : method
+        params[:method] = method == 'token' ? 'credit_card' : method
+
+        if options[:reversal_id]
+          params[:reversal_id] = options[:reversal_id]
+        else
+          params[:transaction_id] = transaction_id
+          params[:transaction_tag] = transaction_tag
+        end
       end
 
       def add_creditcard_for_tokenization(params, payment_method, options)
@@ -231,6 +244,17 @@ module ActiveMerchant
 
       def add_soft_descriptors(params, options)
         params[:soft_descriptors] = options[:soft_descriptors] if options[:soft_descriptors]
+      end
+
+      def add_stored_credentials(params, options)
+        if options[:sequence]
+          params[:stored_credentials] = {}
+          params[:stored_credentials][:cardbrand_original_transaction_id] = options[:cardbrand_original_transaction_id] if options[:cardbrand_original_transaction_id]
+          params[:stored_credentials][:sequence] = options[:sequence]
+          params[:stored_credentials][:initiator] = options[:initiator] if options[:initiator]
+          params[:stored_credentials][:is_scheduled] = options[:is_scheduled]
+          params[:stored_credentials][:auth_type_override] = options[:auth_type_override] if options[:auth_type_override]
+        end
       end
 
       def commit(params, options)
@@ -363,7 +387,7 @@ module ActiveMerchant
             response['transaction_id'],
             response['transaction_tag'],
             params[:method],
-            (response['amount'] && response['amount'].to_i)
+            response['amount']&.to_i
           ].join('|')
         end
       end

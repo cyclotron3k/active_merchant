@@ -82,7 +82,7 @@ module ActiveMerchant #:nodoc:
         post['account.verification'] = credit_card.verification_value
         post['account.email'] = (options[:email] || nil)
         post['presentation.amount3D'] =  (options[:money] || nil)
-        post['presentation.currency3D'] = (options[:currency] || currency( options[:money]))
+        post['presentation.currency3D'] = (options[:currency] || currency(options[:money]))
       end
 
       def headers
@@ -128,13 +128,13 @@ module ActiveMerchant #:nodoc:
       def action_with_token(action, money, payment_method, options)
         options[:money] = money
         case payment_method
-          when String
-            self.send("#{action}_with_token", money, payment_method, options)
-          else
-            MultiResponse.run do |r|
-              r.process { save_card(payment_method, options) }
-              r.process { self.send("#{action}_with_token", money, r.authorization, options) }
-            end
+        when String
+          self.send("#{action}_with_token", money, payment_method, options)
+        else
+          MultiResponse.run do |r|
+            r.process { save_card(payment_method, options) }
+            r.process { self.send("#{action}_with_token", money, r.authorization, options) }
+          end
         end
       end
 
@@ -240,7 +240,6 @@ module ActiveMerchant #:nodoc:
         31203 => 'Pending due to currency conflict (accept manually)',
         31204 => 'Pending due to fraud filters (accept manually)',
 
-
         40000 => 'Problem with transaction data',
         40001 => 'Problem with payment data',
         40002 => 'Invalid checksum',
@@ -315,12 +314,11 @@ module ActiveMerchant #:nodoc:
 
       def response_message(parsed_response)
         return parsed_response['error'] if parsed_response['error']
-        return 'Transaction approved.' if (parsed_response['data'] == [])
+        return 'Transaction approved.' if parsed_response['data'] == []
 
         code = parsed_response['data']['response_code'].to_i
         RESPONSE_CODES[code] || code.to_s
       end
-
 
       class ResponseParser
         attr_reader :raw_response, :parsed, :succeeded, :message, :options

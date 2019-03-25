@@ -11,7 +11,7 @@ class PaymentExpressTest < Test::Unit::TestCase
 
     @visa = credit_card
 
-    @solo = credit_card('6334900000000005', :brand => 'solo', :issue_number => '01')
+    @solo = credit_card('6334900000000005', :brand => 'maestro')
 
     @options = {
       :order_id => generate_unique_id,
@@ -239,6 +239,14 @@ class PaymentExpressTest < Test::Unit::TestCase
 
     perform_each_transaction_type_with_request_body_assertions(options) do |body|
       assert_no_match(/<ClientType>/, body)
+    end
+  end
+
+  def test_pass_ip_as_client_info
+    options = {:ip => '192.168.0.1'}
+
+    perform_each_transaction_type_with_request_body_assertions(options) do |body|
+      assert_match(/<ClientInfo>192.168.0.1<\/ClientInfo>/, body)
     end
   end
 

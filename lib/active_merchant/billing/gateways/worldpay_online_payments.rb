@@ -8,7 +8,7 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
 
       self.supported_countries = %w(HK US GB BE CH CZ DE DK ES FI FR GR HU IE IT LU MT NL NO PL PT SE SG TR)
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro, :laser, :switch]
+      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro]
 
       self.homepage_url = 'http://online.worldpay.com'
       self.display_name = 'Worldpay Online Payments'
@@ -92,21 +92,21 @@ module ActiveMerchant #:nodoc:
       end
 
       def create_post_for_auth_or_purchase(token, money, options)
-      {
-        'token' => token,
-        'orderDescription' => options[:description] || 'Worldpay Order',
-        'amount' => money,
-        'currencyCode' => options[:currency] || default_currency,
-        'name' => options[:billing_address]&&options[:billing_address][:name] ? options[:billing_address][:name] : '',
-        'billingAddress' => {
-          'address1'=>options[:billing_address]&&options[:billing_address][:address1] ? options[:billing_address][:address1] : '',
-          'address2'=>options[:billing_address]&&options[:billing_address][:address2] ? options[:billing_address][:address2] : '',
-          'address3'=>'',
-          'postalCode'=>options[:billing_address]&&options[:billing_address][:zip] ? options[:billing_address][:zip] : '',
-          'city'=>options[:billing_address]&&options[:billing_address][:city] ? options[:billing_address][:city] : '',
-          'state'=>options[:billing_address]&&options[:billing_address][:state] ? options[:billing_address][:state] : '',
-          'countryCode'=>options[:billing_address]&&options[:billing_address][:country] ? options[:billing_address][:country] : ''
-          },
+        {
+          'token' => token,
+          'orderDescription' => options[:description] || 'Worldpay Order',
+          'amount' => money,
+          'currencyCode' => options[:currency] || default_currency,
+          'name' => options[:billing_address]&&options[:billing_address][:name] ? options[:billing_address][:name] : '',
+          'billingAddress' => {
+            'address1'=>options[:billing_address]&&options[:billing_address][:address1] ? options[:billing_address][:address1] : '',
+            'address2'=>options[:billing_address]&&options[:billing_address][:address2] ? options[:billing_address][:address2] : '',
+            'address3'=>'',
+            'postalCode'=>options[:billing_address]&&options[:billing_address][:zip] ? options[:billing_address][:zip] : '',
+            'city'=>options[:billing_address]&&options[:billing_address][:city] ? options[:billing_address][:city] : '',
+            'state'=>options[:billing_address]&&options[:billing_address][:state] ? options[:billing_address][:state] : '',
+            'countryCode'=>options[:billing_address]&&options[:billing_address][:country] ? options[:billing_address][:country] : ''
+           },
           'customerOrderCode' => options[:order_id],
           'orderType' => 'ECOM',
           'authorizeOnly' => options[:authorizeOnly] ? true : false
@@ -139,7 +139,7 @@ module ActiveMerchant #:nodoc:
 
           raw_response = ssl_request(method, self.live_url + url, json, headers(options))
 
-          if (raw_response != '')
+          if raw_response != ''
             response = parse(raw_response)
             if type == 'token'
               success = response.key?('token')
@@ -160,11 +160,10 @@ module ActiveMerchant #:nodoc:
             success = true
             response = {}
           end
-
         rescue ResponseError => e
           raw_response = e.response.body
           response = response_error(raw_response)
-        rescue JSON::ParserError => e
+        rescue JSON::ParserError
           response = json_error(raw_response)
         end
 
@@ -188,15 +187,13 @@ module ActiveMerchant #:nodoc:
       end
 
       def test?
-        @service_key[0]=='T' ? true : false
+        @service_key[0] == 'T'
       end
 
       def response_error(raw_response)
-        begin
-          parse(raw_response)
-        rescue JSON::ParserError
-          json_error(raw_response)
-        end
+        parse(raw_response)
+      rescue JSON::ParserError
+        json_error(raw_response)
       end
 
       def json_error(raw_response)

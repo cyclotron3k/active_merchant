@@ -170,13 +170,11 @@ class RemoteLitleCertification < Test::Unit::TestCase
     assert_equal 'P', response.cvv_result['code']
     puts "Test #{options[:order_id]} Sale: #{txn_id(response)}"
 
-
     # 6A. void
     assert response = @gateway.void(response.authorization, {:order_id => '6A'})
     assert_equal '360', response.params['response']
     assert_equal 'No transaction found with specified transaction Id', response.message
     puts "Test #{options[:order_id]}A: #{txn_id(response)}"
-
   end
 
   def test7
@@ -856,7 +854,7 @@ class RemoteLitleCertification < Test::Unit::TestCase
     assert_success store_response
     assert_equal '445711', store_response.params['bin']
     assert_equal 'VI', store_response.params['type']
-    assert_equal '0123', store_response.params['litleToken'][-4,4]
+    assert_equal '0123', store_response.params['litleToken'][-4, 4]
     assert_equal '801', store_response.params['response']
     assert_equal 'Account number was successfully registered', store_response.message
     puts "Test #{options[:order_id]}: #{txn_id(response)}"
@@ -891,7 +889,7 @@ class RemoteLitleCertification < Test::Unit::TestCase
     assert_equal '445711', store_response.params['bin']
     assert_equal 'VI', store_response.params['type']
     assert_equal '802', store_response.params['response']
-    assert_equal '0123', store_response.params['litleToken'][-4,4]
+    assert_equal '0123', store_response.params['litleToken'][-4, 4]
     puts "Test #{options[:order_id]}: #{txn_id(store_response)}"
   end
 
@@ -946,7 +944,7 @@ class RemoteLitleCertification < Test::Unit::TestCase
     assert response = @gateway.authorize(15000, credit_card, options)
     assert_success response
     assert_equal 'Approved', response.message
-    assert_equal '0196', response.params['tokenResponse_litleToken'][-4,4]
+    assert_equal '0196', response.params['tokenResponse_litleToken'][-4, 4]
     assert %w(801 802).include? response.params['tokenResponse_tokenResponseCode']
     assert_equal 'MC', response.params['tokenResponse_type']
     assert_equal '543510', response.params['tokenResponse_bin']
@@ -986,7 +984,7 @@ class RemoteLitleCertification < Test::Unit::TestCase
 
     assert_success response
     assert_equal 'Approved', response.message
-    assert_equal '0196', response.params['tokenResponse_litleToken'][-4,4]
+    assert_equal '0196', response.params['tokenResponse_litleToken'][-4, 4]
     assert %w(801 802).include? response.params['tokenResponse_tokenResponseCode']
     assert_equal 'MC', response.params['tokenResponse_type']
     assert_equal '543510', response.params['tokenResponse_bin']
@@ -1162,63 +1160,6 @@ class RemoteLitleCertification < Test::Unit::TestCase
   end
 
   private
-
-  def auth_assertions(amount, card, options, assertions={})
-    # 1: authorize
-    assert response = @gateway.authorize(amount, card, options)
-    assert_success response
-    assert_equal 'Approved', response.message
-    assert_equal assertions[:avs], response.avs_result['code'] if assertions[:avs]
-    assert_equal assertions[:cvv], response.cvv_result['code'] if assertions[:cvv]
-    assert_equal auth_code(options[:order_id]), response.params['authCode']
-    puts "Test #{options[:order_id]} Authorize: #{txn_id(response)}"
-
-    # 1A: capture
-    assert response = @gateway.capture(amount, response.authorization, {:id => transaction_id})
-    assert_equal 'Approved', response.message
-    puts "Test #{options[:order_id]}A: #{txn_id(response)}"
-
-    # 1B: credit
-    assert response = @gateway.credit(amount, response.authorization, {:id => transaction_id})
-    assert_equal 'Approved', response.message
-    puts "Test #{options[:order_id]}B: #{txn_id(response)}"
-
-    # 1C: void
-    assert response = @gateway.void(response.authorization, {:id => transaction_id})
-    assert_equal 'Approved', response.message
-    puts "Test #{options[:order_id]}C: #{txn_id(response)}"
-  end
-
-  def authorize_avs_assertions(credit_card, options, assertions={})
-    assert response = @gateway.authorize(000, credit_card, options)
-    assert_equal assertions.key?(:success) ? assertions[:success] : true, response.success?
-    assert_equal assertions[:message] || 'Approved', response.message
-    assert_equal assertions[:avs], response.avs_result['code'], caller.inspect
-    assert_equal assertions[:cvv], response.cvv_result['code'], caller.inspect if assertions[:cvv]
-    puts "Test #{options[:order_id]} AVS Only: #{txn_id(response)}"
-  end
-
-  def sale_assertions(amount, card, options, assertions={})
-    # 1: sale
-    assert response = @gateway.purchase(amount, card, options)
-    assert_success response
-    assert_equal 'Approved', response.message
-    assert_equal assertions[:avs], response.avs_result['code'] if assertions[:avs]
-    assert_equal assertions[:cvv], response.cvv_result['code'] if assertions[:cvv]
-    assert_equal auth_code(options[:order_id]), response.params['authCode']
-    puts "Test #{options[:order_id]} Sale: #{txn_id(response)}"
-
-
-    # 1B: credit
-    assert response = @gateway.credit(amount, response.authorization, {:id => transaction_id})
-    assert_equal 'Approved', response.message
-    puts "Test #{options[:order_id]}B Sale: #{txn_id(response)}"
-
-    # 1C: void
-    assert response = @gateway.void(response.authorization, {:id => transaction_id})
-    assert_equal 'Approved', response.message
-    puts "Test #{options[:order_id]}C Sale: #{txn_id(response)}"
-  end
 
   def auth_assertions(amount, card, options, assertions={})
     # 1: authorize

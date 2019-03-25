@@ -8,15 +8,24 @@ rvm:
 - 2.3
 
 gemfile:
-- Gemfile.rails52
-- Gemfile.rails51
-- Gemfile.rails50
-- Gemfile.rails42
+- gemfiles/Gemfile.rails52
+- gemfiles/Gemfile.rails51
+- gemfiles/Gemfile.rails50
+- gemfiles/Gemfile.rails42
+- gemfiles/Gemfile.rails_master
+
+jobs:
+  include:
+      rvm: 2.5
+      gemfile: Gemfile
+      script: bundle exec rubocop --parallel
 
 matrix:
-  include:
+  exclude:
     - rvm: 2.3
-      gemfile: Gemfile.rails42
+      gemfile: 'gemfiles/Gemfile.rails_master'
+    - rvm: 2.4
+      gemfile: 'gemfiles/Gemfile.rails_master'
 
 notifications:
   email:

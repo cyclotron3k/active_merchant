@@ -43,7 +43,7 @@ module ActiveMerchant #:nodoc:
       self.display_name = 'FirstData Global Gateway e4'
 
       STANDARD_ERROR_CODE_MAPPING = {
-      # Bank error codes: https://firstdata.zendesk.com/entries/471297-First-Data-Global-Gateway-e4-Bank-Response-Codes
+        # Bank error codes: https://firstdata.zendesk.com/entries/471297-First-Data-Global-Gateway-e4-Bank-Response-Codes
         '201' => STANDARD_ERROR_CODE[:incorrect_number],
         '531' => STANDARD_ERROR_CODE[:invalid_cvc],
         '503' => STANDARD_ERROR_CODE[:invalid_cvc],
@@ -55,7 +55,7 @@ module ActiveMerchant #:nodoc:
         '401' => STANDARD_ERROR_CODE[:call_issuer],
         '402' => STANDARD_ERROR_CODE[:call_issuer],
         '501' => STANDARD_ERROR_CODE[:pickup_card],
-      # Ecommerce error codes -- https://firstdata.zendesk.com/entries/451980-ecommerce-response-codes-etg-codes
+        # Ecommerce error codes -- https://firstdata.zendesk.com/entries/451980-ecommerce-response-codes-etg-codes
         '22' => STANDARD_ERROR_CODE[:invalid_number],
         '25' => STANDARD_ERROR_CODE[:invalid_expiry_date],
         '31' => STANDARD_ERROR_CODE[:incorrect_cvc],
@@ -141,12 +141,12 @@ module ActiveMerchant #:nodoc:
       end
 
       def scrub(transcript)
-        transcript
-          .gsub(%r((<Card_Number>).+(</Card_Number>)), '\1[FILTERED]\2')
-          .gsub(%r((<VerificationStr2>).+(</VerificationStr2>)), '\1[FILTERED]\2')
-          .gsub(%r((<Password>).+(</Password>))i, '\1[FILTERED]\2')
-          .gsub(%r((<CAVV>).+(</CAVV>)), '\1[FILTERED]\2')
-          .gsub(%r((Card Number : ).*\d)i, '\1[FILTERED]')
+        transcript.
+          gsub(%r((<Card_Number>).+(</Card_Number>)), '\1[FILTERED]\2').
+          gsub(%r((<VerificationStr2>).+(</VerificationStr2>)), '\1[FILTERED]\2').
+          gsub(%r((<Password>).+(</Password>))i, '\1[FILTERED]\2').
+          gsub(%r((<CAVV>).+(</CAVV>)), '\1[FILTERED]\2').
+          gsub(%r((Card Number : ).*\d)i, '\1[FILTERED]')
       end
 
       def supports_network_tokenization?
@@ -246,12 +246,12 @@ module ActiveMerchant #:nodoc:
 
       def add_credit_card_eci(xml, credit_card, options)
         eci = if credit_card.is_a?(NetworkTokenizationCreditCard) && credit_card.source == :apple_pay && card_brand(credit_card) == 'discover'
-          # Discover requires any Apple Pay transaction, regardless of in-app
-          # or web, and regardless of the ECI contained in the PKPaymentToken,
-          # to have an ECI value explicitly of 04.
-          '04'
-        else
-          (credit_card.respond_to?(:eci) ? credit_card.eci : nil) || options[:eci] || DEFAULT_ECI
+                # Discover requires any Apple Pay transaction, regardless of in-app
+                # or web, and regardless of the ECI contained in the PKPaymentToken,
+                # to have an ECI value explicitly of 04.
+                '04'
+              else
+                (credit_card.respond_to?(:eci) ? credit_card.eci : nil) || options[:eci] || DEFAULT_ECI
         end
 
         xml.tag! 'Ecommerce_Flag', eci.to_s =~ /^[0-9]+$/ ? eci.to_s.rjust(2, '0') : eci
@@ -394,7 +394,7 @@ module ActiveMerchant #:nodoc:
             credit_card.last_name,
             credit_card.month,
             credit_card.year
-            ].map { |value| value.to_s.gsub(/;/, '') }.join(';')
+          ].map { |value| value.to_s.gsub(/;/, '') }.join(';')
         else
           raise StandardError, "TransArmor support is not enabled on your #{display_name} account"
         end
@@ -438,7 +438,7 @@ module ActiveMerchant #:nodoc:
           parse_elements(response, root)
         end
 
-        response.delete_if{ |k,v| SENSITIVE_FIELDS.include?(k) }
+        response.delete_if { |k, v| SENSITIVE_FIELDS.include?(k) }
       end
 
       def parse_elements(response, root)

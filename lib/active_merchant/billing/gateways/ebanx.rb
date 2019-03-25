@@ -1,15 +1,15 @@
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
     class EbanxGateway < Gateway
-      self.test_url = 'https://sandbox.ebanx.com/ws/'
-      self.live_url = 'https://api.ebanx.com/ws/'
+      self.test_url = 'https://sandbox.ebanxpay.com/ws/'
+      self.live_url = 'https://api.ebanxpay.com/ws/'
 
-      self.supported_countries = ['BR', 'MX', 'CO']
+      self.supported_countries = ['BR', 'MX', 'CO', 'CL', 'AR']
       self.default_currency = 'USD'
       self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club]
 
       self.homepage_url = 'http://www.ebanx.com/'
-      self.display_name = 'Ebanx'
+      self.display_name = 'EBANX'
 
       CARD_BRAND = {
         visa: 'visa',
@@ -147,7 +147,7 @@ module ActiveMerchant #:nodoc:
 
       def add_customer_responsible_person(post, payment, options)
         post[:payment][:person_type] = options[:person_type] if options[:person_type]
-        if options[:person_type] && options[:person_type].downcase == 'business'
+        if options[:person_type]&.casecmp('business')&.zero?
           post[:payment][:responsible] = {}
           post[:payment][:responsible][:name] = options[:responsible_name] if options[:responsible_name]
           post[:payment][:responsible][:document] = options[:responsible_document] if options[:responsible_document]

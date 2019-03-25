@@ -226,10 +226,10 @@ module ActiveMerchant #:nodoc:
         if credit_card.respond_to?(:track_data) && credit_card.track_data.present?
           xml.tag! 'trackData', credit_card.track_data
         else
-         xml.tag! 'strPAN', credit_card.number
-         xml.tag! 'strExpDate', expdate(credit_card)
-         xml.tag! 'strCardHolder', credit_card.name
-         xml.tag! 'strCVCode', credit_card.verification_value if credit_card.verification_value?
+          xml.tag! 'strPAN', credit_card.number
+          xml.tag! 'strExpDate', expdate(credit_card)
+          xml.tag! 'strCardHolder', credit_card.name
+          xml.tag! 'strCVCode', credit_card.verification_value if credit_card.verification_value?
         end
       end
 
@@ -293,9 +293,9 @@ module ActiveMerchant #:nodoc:
       def commit(action, request, v4 = false)
         begin
           data = ssl_post(url(v4), request,
-                   'Content-Type' => 'text/xml; charset=utf-8',
-                   'SOAPAction'   => soap_action(action, v4)
-                 )
+            'Content-Type' => 'text/xml; charset=utf-8',
+            'SOAPAction'   => soap_action(action, v4)
+          )
           response = parse(action, data)
         rescue ActiveMerchant::ResponseError => e
           response = parse_error(e.response)

@@ -46,6 +46,8 @@ class ConnectionTest < Test::Unit::TestCase
 
   def test_connection_does_not_mutate_headers_argument
     headers = { 'Content-Type' => 'text/xml' }.freeze
+    Net::HTTP.any_instance.expects(:get).with('/tx.php', headers.merge({'connection' => 'close'})).returns(@ok)
+    Net::HTTP.any_instance.expects(:start).returns(true)
     @connection.request(:get, nil, headers)
     assert_equal({ 'Content-Type' => 'text/xml' }, headers)
   end
@@ -213,9 +215,12 @@ class ConnectionTest < Test::Unit::TestCase
   end
 
   def test_mixture_of_failures_with_retry_safe_enabled
-    Net::HTTP.any_instance.expects(:start).times(3).raises(Errno::ECONNRESET).
-                                                    raises(Errno::ECONNREFUSED).
-                                                    raises(EOFError)
+    Net::HTTP.any_instance.
+      expects(:start).
+      times(3).
+      raises(Errno::ECONNRESET).
+      raises(Errno::ECONNREFUSED).
+      raises(EOFError)
 
     @connection.retry_safe = true
 

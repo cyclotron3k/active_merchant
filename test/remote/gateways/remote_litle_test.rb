@@ -67,13 +67,13 @@ class RemoteLitleTest < Test::Unit::TestCase
       name: 'Tom Black',
       routing_number:  '011075150',
       account_number: '4099999992',
-      account_type: 'Checking'
+      account_type: 'checking'
     )
     @authorize_check = check(
       name: 'John Smith',
       routing_number: '011075150',
       account_number: '1099999999',
-      account_type: 'Checking'
+      account_type: 'checking'
     )
     @store_check = check(
       routing_number: '011100012',
@@ -93,7 +93,7 @@ class RemoteLitleTest < Test::Unit::TestCase
       campaign: 'super-awesome-campaign',
       merchant_grouping_id: 'brilliant-group'
     )
-    assert response = @gateway.authorize(10010, @credit_card1, options)
+    assert @gateway.authorize(10010, @credit_card1, options)
   end
 
   def test_successful_authorization_with_echeck
@@ -199,22 +199,21 @@ class RemoteLitleTest < Test::Unit::TestCase
 
   def test_unsuccessful_purchase
     assert response = @gateway.purchase(60060, @credit_card2, {
-        :order_id=>'6',
-        :billing_address=>{
-          :name      => 'Joe Green',
-          :address1  => '6 Main St.',
-          :city      => 'Derry',
-          :state     => 'NH',
-          :zip       => '03038',
-          :country   => 'US'
-        },
-      }
-    )
+      :order_id=>'6',
+      :billing_address=>{
+        :name      => 'Joe Green',
+        :address1  => '6 Main St.',
+        :city      => 'Derry',
+        :state     => 'NH',
+        :zip       => '03038',
+        :country   => 'US'
+      },
+    })
     assert_failure response
     assert_equal 'Insufficient Funds', response.message
   end
 
-  def test_authorization_capture_refund_void
+  def test_authorize_capture_refund_void
     assert auth = @gateway.authorize(10010, @credit_card1, @options)
     assert_success auth
     assert_equal 'Approved', auth.message
@@ -230,6 +229,224 @@ class RemoteLitleTest < Test::Unit::TestCase
     assert void = @gateway.void(refund.authorization)
     assert_success void
     assert_equal 'Approved', void.message
+  end
+
+  def test_authorize_and_capture_with_stored_credential_recurring
+    credit_card = CreditCard.new(@credit_card_hash.merge(
+      number: '4100200300011001',
+      month: '05',
+      year: '2021',
+      verification_value: '463'
+    ))
+
+    initial_options = @options.merge(
+      order_id: 'Net_Id1',
+      stored_credential: {
+        initial_transaction: true,
+        reason_type: 'recurring',
+        initiator: 'merchant',
+        network_transaction_id: nil
+      }
+    )
+    assert auth = @gateway.authorize(4999, credit_card, initial_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+    assert network_transaction_id = auth.params['networkTransactionId']
+
+    assert capture = @gateway.capture(4999, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+
+    used_options = @options.merge(
+      order_id: 'Net_Id1a',
+      stored_credential: {
+        initial_transaction: false,
+        reason_type: 'recurring',
+        initiator: 'merchant',
+        network_transaction_id: network_transaction_id
+      }
+    )
+    assert auth = @gateway.authorize(4999, credit_card, used_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+
+    assert capture = @gateway.capture(4999, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+  end
+
+  def test_authorize_and_capture_with_stored_credential_installment
+    credit_card = CreditCard.new(@credit_card_hash.merge(
+      number: '4457010000000009',
+      month: '01',
+      year: '2021',
+      verification_value: '349'
+    ))
+
+    initial_options = @options.merge(
+      order_id: 'Net_Id2',
+      stored_credential: {
+        initial_transaction: true,
+        reason_type: 'installment',
+        initiator: 'merchant',
+        network_transaction_id: nil
+      }
+    )
+    assert auth = @gateway.authorize(5500, credit_card, initial_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+    assert network_transaction_id = auth.params['networkTransactionId']
+
+    assert capture = @gateway.capture(5500, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+
+    used_options = @options.merge(
+      order_id: 'Net_Id2a',
+      stored_credential: {
+        initial_transaction: false,
+        reason_type: 'installment',
+        initiator: 'merchant',
+        network_transaction_id: network_transaction_id
+      }
+    )
+    assert auth = @gateway.authorize(5500, credit_card, used_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+
+    assert capture = @gateway.capture(5500, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+  end
+
+  def test_authorize_and_capture_with_stored_credential_mit_card_on_file
+    credit_card = CreditCard.new(@credit_card_hash.merge(
+      number: '4457000800000002',
+      month: '01',
+      year: '2021',
+      verification_value: '349'
+    ))
+
+    initial_options = @options.merge(
+      order_id: 'Net_Id3',
+      stored_credential: {
+        initial_transaction: true,
+        reason_type: 'unscheduled',
+        initiator: 'merchant',
+        network_transaction_id: nil
+      }
+    )
+    assert auth = @gateway.authorize(5500, credit_card, initial_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+    assert network_transaction_id = auth.params['networkTransactionId']
+
+    assert capture = @gateway.capture(5500, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+
+    used_options = @options.merge(
+      order_id: 'Net_Id3a',
+      stored_credential: {
+        initial_transaction: false,
+        reason_type: 'unscheduled',
+        initiator: 'merchant',
+        network_transaction_id: network_transaction_id
+      }
+    )
+    assert auth = @gateway.authorize(2500, credit_card, used_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+
+    assert capture = @gateway.capture(2500, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+  end
+
+  def test_authorize_and_capture_with_stored_credential_cit_card_on_file
+    credit_card = CreditCard.new(@credit_card_hash.merge(
+      number: '4457000800000002',
+      month: '01',
+      year: '2021',
+      verification_value: '349'
+    ))
+
+    initial_options = @options.merge(
+      order_id: 'Net_Id3',
+      stored_credential: {
+        initial_transaction: true,
+        reason_type: 'unscheduled',
+        initiator: 'cardholder',
+        network_transaction_id: nil
+      }
+    )
+    assert auth = @gateway.authorize(5500, credit_card, initial_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+    assert network_transaction_id = auth.params['networkTransactionId']
+
+    assert capture = @gateway.capture(5500, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+
+    used_options = @options.merge(
+      order_id: 'Net_Id3b',
+      stored_credential: {
+        initial_transaction: false,
+        reason_type: 'unscheduled',
+        initiator: 'cardholder',
+        network_transaction_id: network_transaction_id
+      }
+    )
+    assert auth = @gateway.authorize(4000, credit_card, used_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+
+    assert capture = @gateway.capture(4000, auth.authorization)
+    assert_success capture
+    assert_equal 'Approved', capture.message
+  end
+
+  def test_purchase_with_stored_credential_cit_card_on_file_non_ecommerce
+    credit_card = CreditCard.new(@credit_card_hash.merge(
+      number: '4457000800000002',
+      month: '01',
+      year: '2021',
+      verification_value: '349'
+    ))
+
+    initial_options = @options.merge(
+      order_id: 'Net_Id3',
+      order_source: '3dsAuthenticated',
+      xid: 'BwABBJQ1AgAAAAAgJDUCAAAAAAA=',
+      cavv: 'BwABBJQ1AgAAAAAgJDUCAAAAAAA=',
+      stored_credential: {
+        initial_transaction: true,
+        reason_type: 'unscheduled',
+        initiator: 'cardholder',
+        network_transaction_id: nil
+      }
+    )
+    assert auth = @gateway.purchase(5500, credit_card, initial_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
+    assert network_transaction_id = auth.params['networkTransactionId']
+
+    used_options = @options.merge(
+      order_id: 'Net_Id3b',
+      order_source: '3dsAuthenticated',
+      xid: 'BwABBJQ1AgAAAAAgJDUCAAAAAAA=',
+      cavv: 'BwABBJQ1AgAAAAAgJDUCAAAAAAA=',
+      stored_credential: {
+        initial_transaction: false,
+        reason_type: 'unscheduled',
+        initiator: 'cardholder',
+        network_transaction_id: network_transaction_id
+      }
+    )
+    assert auth = @gateway.purchase(4000, credit_card, used_options)
+    assert_success auth
+    assert_equal 'Approved', auth.message
   end
 
   def test_void_with_echeck
@@ -399,7 +616,7 @@ class RemoteLitleTest < Test::Unit::TestCase
   def test_successful_purchase_with_dynamic_descriptors
     assert response = @gateway.purchase(10010, @credit_card1, @options.merge(
       descriptor_name: 'SuperCompany',
-      descriptor_phone: '9193341121',
+      descriptor_phone: '9193341121'
     ))
     assert_success response
     assert_equal 'Approved', response.message

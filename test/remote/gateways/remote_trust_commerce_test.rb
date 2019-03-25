@@ -5,6 +5,7 @@ class TrustCommerceTest < Test::Unit::TestCase
     @gateway = TrustCommerceGateway.new(fixtures(:trust_commerce))
 
     @credit_card = credit_card('4111111111111111')
+    @check = check({account_number: 55544433221, routing_number: 789456124})
 
     @amount = 100
 
@@ -53,6 +54,14 @@ class TrustCommerceTest < Test::Unit::TestCase
   def test_successful_purchase_with_avs
     assert response = @gateway.purchase(@amount, @credit_card, @options)
     assert_equal 'Y', response.avs_result['code']
+    assert_match %r{The transaction was successful}, response.message
+
+    assert_success response
+    assert !response.authorization.blank?
+  end
+
+  def test_successful_purchase_with_check
+    assert response = @gateway.purchase(@amount, @check, @options)
     assert_match %r{The transaction was successful}, response.message
 
     assert_success response
@@ -128,6 +137,15 @@ class TrustCommerceTest < Test::Unit::TestCase
     assert_success response
   end
 
+  def test_successful_check_refund
+    purchase = @gateway.purchase(@amount, @check, @options)
+
+    assert response = @gateway.refund(@amount, purchase.authorization)
+
+    assert_match %r{The transaction was successful}, response.message
+    assert_success response
+  end
+
   def test_store_failure
     assert response = @gateway.store(@credit_card)
 
@@ -156,7 +174,7 @@ class TrustCommerceTest < Test::Unit::TestCase
       @gateway.purchase(@amount, @credit_card,  @options)
     end
     clean_transcript = @gateway.scrub(transcript)
-    
+
     assert_scrubbed(@credit_card.number, clean_transcript)
     assert_scrubbed(@credit_card.verification_value.to_s, clean_transcript)
   end

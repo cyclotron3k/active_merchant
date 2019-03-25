@@ -25,7 +25,7 @@ class MundipaggTest < Test::Unit::TestCase
   end
 
   def test_successful_purchase_with_holder_document
-    @options.merge!(holder_document: 'a1b2c3d4')
+    @options[:holder_document] = 'a1b2c3d4'
     response = stub_comms do
       @gateway.purchase(@amount, @credit_card, @options)
     end.check_request do |endpoint, data, headers|
@@ -57,6 +57,20 @@ class MundipaggTest < Test::Unit::TestCase
     @gateway.expects(:ssl_post).returns(successful_authorize_response)
 
     response = @gateway.authorize(@amount, @credit_card, @options)
+    assert_success response
+
+    assert_equal 'ch_gm5wrlGMI2Fb0x6K', response.authorization
+    assert response.test?
+  end
+
+  def test_successful_authorize_with_partially_missing_address
+    shipping_address = {
+      country: 'BR',
+      address1: 'Foster St.'
+    }
+
+    @gateway.expects(:ssl_post).returns(successful_authorize_response)
+    response = @gateway.authorize(@amount, @credit_card, @options.merge(shipping_address: shipping_address))
     assert_success response
 
     assert_equal 'ch_gm5wrlGMI2Fb0x6K', response.authorization
@@ -712,7 +726,7 @@ class MundipaggTest < Test::Unit::TestCase
   def failed_void_response
     '{"message": "Charge not found."}'
   end
-  
+
   def successful_verify_response
     %(
       {

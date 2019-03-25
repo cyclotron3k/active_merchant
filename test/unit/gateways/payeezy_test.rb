@@ -15,7 +15,15 @@ class PayeezyGateway < Test::Unit::TestCase
       :billing_address => address,
       :ta_token => '123'
     }
+    @options_stored_credentials = {
+      cardbrand_original_transaction_id: 'abc123',
+      sequence: 'FIRST',
+      is_scheduled: true,
+      initiator: 'MERCHANT',
+      auth_type_override: 'A'
+    }
     @authorization = 'ET1700|106625152|credit_card|4738'
+    @reversal_id = SecureRandom.random_number(1000000).to_s
   end
 
   def test_invalid_credentials
@@ -115,6 +123,18 @@ class PayeezyGateway < Test::Unit::TestCase
     assert_equal 'Transaction Normal - Approved', response.message
   end
 
+  def test_successful_purchase_with_stored_credentials
+    response = stub_comms do
+      @gateway.purchase(@amount, @credit_card, @options.merge(@options_stored_credentials))
+    end.check_request do |endpoint, data, headers|
+      assert_match(/stored_credentials/, data)
+    end.respond_with(successful_purchase_stored_credentials_response)
+
+    assert_success response
+    assert response.test?
+    assert_equal 'Transaction Normal - Approved', response.message
+  end
+
   def test_failed_purchase
     @gateway.expects(:ssl_post).raises(failed_purchase_response)
     assert response = @gateway.purchase(@amount, @credit_card, @options)
@@ -174,9 +194,23 @@ class PayeezyGateway < Test::Unit::TestCase
   end
 
   def test_successful_void
-    @gateway.expects(:ssl_post).returns(successful_void_response)
-    assert response = @gateway.void(@authorization, @options)
+    response = stub_comms do
+      @gateway.void(@authorization, @options)
+    end.check_request do |endpoint, data, headers|
+      json = '{"transaction_type":"void","method":"credit_card","transaction_tag":"106625152","currency_code":"USD","amount":"4738"}'
+      assert_match json, data
+    end.respond_with(successful_void_response)
+
     assert_success response
+  end
+
+  def test_successful_void_with_reversal_id
+    stub_comms do
+      @gateway.void(@authorization, @options.merge(reversal_id: @reversal_id))
+    end.check_request do |endpoint, data, headers|
+      json = "{\"transaction_type\":\"void\",\"method\":\"credit_card\",\"reversal_id\":\"#{@reversal_id}\",\"currency_code\":\"USD\",\"amount\":\"4738\"}"
+      assert_match json, data
+    end.respond_with(successful_void_response)
   end
 
   def test_failed_void
@@ -455,6 +489,10 @@ class PayeezyGateway < Test::Unit::TestCase
     RESPONSE
   end
 
+  def successful_purchase_stored_credentials_response
+    '{"correlation_id":"228.4479800174823","transaction_status":"approved","validation_status":"success","transaction_type":"purchase","transaction_id":"ET117353","transaction_tag":"2309866208","method":"credit_card","amount":"100","currency":"USD","avs":"4","cvv2":"M","token":{"token_type":"FDToken","token_data":{"value":"9091469151414242"}},"card":{"type":"Visa","cardholder_name":"Longbob Longsen","card_number":"4242","exp_date":"0919"},"bank_resp_code":"100","bank_message":"Approved","gateway_resp_code":"00","gateway_message":"Transaction Normal","stored_credentials":{"cardbrand_original_transaction_id":"706838021010062"}}'
+  end
+
   def successful_purchase_echeck_response
     <<-RESPONSE
     {\"correlation_id\":\"228.1449688619062\",\"transaction_status\":\"approved\",\"validation_status\":\"success\",\"transaction_type\":\"purchase\",\"transaction_id\":\"ET133078\",\"transaction_tag\":\"69864362\",\"method\":\"tele_check\",\"amount\":\"100\",\"currency\":\"USD\",\"bank_resp_code\":\"100\",\"bank_message\":\"Approved\",\"gateway_resp_code\":\"00\",\"gateway_message\":\"Transaction Normal\",\"tele_check\":{\"accountholder_name\":\"Jim Smith\",\"check_number\":\"1\",\"check_type\":\"P\",\"account_number\":\"8535\",\"routing_number\":\"244183602\"}}
@@ -511,7 +549,7 @@ response: !ruby/object:Net::HTTPBadRequest
   body_exist: true
 message:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPBadRequest', 'ActiveMerchant::ResponseError'])
   end
 
   def successful_authorize_response
@@ -586,7 +624,7 @@ response: !ruby/object:Net::HTTPBadRequest
   body_exist: true
 message:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPBadRequest', 'ActiveMerchant::ResponseError'])
   end
 
   def successful_void_response
@@ -631,7 +669,7 @@ response: !ruby/object:Net::HTTPBadRequest
   body_exist: true
 message:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPBadRequest', 'ActiveMerchant::ResponseError'])
   end
 
   def failed_capture_response
@@ -671,7 +709,7 @@ response: !ruby/object:Net::HTTPBadRequest
   body_exist: true
 message:
   RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPBadRequest', 'ActiveMerchant::ResponseError'])
   end
 
   def invalid_token_response
@@ -710,7 +748,7 @@ response: !ruby/object:Net::HTTPUnauthorized
   body_exist: true
 message:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPUnauthorized', 'ActiveMerchant::ResponseError'])
   end
 
   def invalid_token_response_integration
@@ -735,7 +773,7 @@ response: !ruby/object:Net::HTTPUnauthorized
   body_exist: true
 message:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPUnauthorized', 'ActiveMerchant::ResponseError'])
   end
 
   def bad_credentials_response
@@ -760,6 +798,6 @@ response: !ruby/object:Net::HTTPForbidden
   body_exist: true
 message:
     RESPONSE
-    YAML.load(yamlexcep)
+    YAML.safe_load(yamlexcep, ['Net::HTTPForbidden', 'ActiveMerchant::ResponseError'])
   end
 end

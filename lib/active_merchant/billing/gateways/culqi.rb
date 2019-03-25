@@ -235,7 +235,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def post_data(action, params)
-        params.map {|k, v| "#{k}=#{CGI.escape(v.to_s)}"}.join('&')
+        params.map { |k, v| "#{k}=#{CGI.escape(v.to_s)}" }.join('&')
       end
 
       def url
@@ -243,16 +243,14 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(body)
-        begin
-          JSON.parse(body)
-        rescue JSON::ParserError
-          message = 'Invalid JSON response received from CulqiGateway. Please contact CulqiGateway if you continue to receive this message.'
-          message += "(The raw response returned by the API was #{body.inspect})"
-          {
-            'status' => 'N',
-            'statusdescription' => message
-          }
-        end
+        JSON.parse(body)
+      rescue JSON::ParserError
+        message = 'Invalid JSON response received from CulqiGateway. Please contact CulqiGateway if you continue to receive this message.'
+        message += "(The raw response returned by the API was #{body.inspect})"
+        {
+          'status' => 'N',
+          'statusdescription' => message
+        }
       end
 
       def success_from(response)

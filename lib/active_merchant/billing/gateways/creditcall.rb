@@ -14,14 +14,14 @@ module ActiveMerchant #:nodoc:
 
       self.homepage_url = 'https://www.creditcall.com'
       self.display_name = 'Creditcall'
-      
+
       CVV_CODE = {
         'matched' => 'M',
         'notmatched' => 'N',
         'notchecked' => 'P',
         'partialmatch' => 'N'
       }
-      
+
       AVS_CODE = {
         'matched;matched' => 'D',
         'matched;notchecked' =>'B',
@@ -52,8 +52,8 @@ module ActiveMerchant #:nodoc:
           r.process { capture(money, r.authorization, options) }
         end
 
-        merged_params = multi_response.responses.map { |r| r.params }.reduce({}, :merge)
-        
+        merged_params = multi_response.responses.map(&:params).reduce({}, :merge)
+
         Response.new(
           multi_response.primary_response.success?,
           multi_response.primary_response.message,
@@ -147,7 +147,7 @@ module ActiveMerchant #:nodoc:
       def add_transaction_details(xml, amount, authorization, type, options={})
         xml.TransactionDetails do
           xml.MessageType type
-          xml.Amount(unit: 'Minor'){ xml.text(amount) } if amount
+          xml.Amount(unit: 'Minor') { xml.text(amount) } if amount
           xml.CardEaseReference authorization if authorization
           xml.VoidReason '01' if type == 'Void'
         end
@@ -157,7 +157,7 @@ module ActiveMerchant #:nodoc:
         xml.TerminalDetails do
           xml.TerminalID @options[:terminal_id]
           xml.TransactionKey @options[:transaction_key]
-          xml.Software(version: 'SoftwareVersion'){ xml.text('SoftwareName') }
+          xml.Software(version: 'SoftwareVersion') { xml.text('SoftwareName') }
         end
       end
 
@@ -213,7 +213,6 @@ module ActiveMerchant #:nodoc:
             childnode_to_response(response, childnode)
           end
         end
-
 
         response
       end

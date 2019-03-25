@@ -321,7 +321,7 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      CURRENCY_CODES = Hash.new{|h,k| raise ArgumentError.new("Unsupported currency: #{k}")}
+      CURRENCY_CODES = Hash.new { |h, k| raise ArgumentError.new("Unsupported currency: #{k}") }
       CURRENCY_CODES['USD'] = '840'
 
       def headers
@@ -532,14 +532,14 @@ module ActiveMerchant #:nodoc:
 
       def add_contact(doc, fullname, options)
         doc['v1'].contact do
-          doc['v1'].fullName fullname
+          doc['v1'].fullName fullname unless fullname.blank?
           doc['v1'].coName options[:company_name] if options[:company_name]
           doc['v1'].title options[:title] if options[:title]
 
           if (billing_address = options[:billing_address])
             if billing_address[:phone]
               doc['v1'].phone do
-                doc['v1'].type (options[:phone_number_type] || '4')
+                doc['v1'].type(options[:phone_number_type] || '4')
                 doc['v1'].nr billing_address[:phone].gsub(/\D/, '')
               end
             end
@@ -557,7 +557,7 @@ module ActiveMerchant #:nodoc:
 
           if (shipping_address = options[:shipping_address])
             doc['v1'].ship do
-              doc['v1'].fullName fullname
+              doc['v1'].fullName fullname unless fullname.blank?
               doc['v1'].addrLn1 shipping_address[:address1] if shipping_address[:address1]
               doc['v1'].addrLn2 shipping_address[:address2] if shipping_address[:address2]
               doc['v1'].city shipping_address[:city] if shipping_address[:city]
@@ -572,7 +572,7 @@ module ActiveMerchant #:nodoc:
 
       def add_name(doc, payment_method)
         doc['v1'].contact do
-          doc['v1'].fullName payment_method.name
+          doc['v1'].fullName payment_method.name unless payment_method.name.blank?
         end
       end
 

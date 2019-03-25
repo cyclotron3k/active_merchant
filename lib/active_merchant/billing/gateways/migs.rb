@@ -17,7 +17,7 @@ module ActiveMerchant #:nodoc:
       # MiGS is supported throughout Asia Pacific, Middle East and Africa
       # MiGS is used in Australia (AU) by ANZ (eGate), CBA (CommWeb) and more
       # Source of Country List: http://www.scribd.com/doc/17811923
-      self.supported_countries = %w(AU AE BD BN EG HK ID IN JO KW LB LK MU MV MY NZ OM PH QA SA SG TT VN)
+      self.supported_countries = %w(AU AE BD BN EG HK ID JO KW LB LK MU MV MY NZ OM PH QA SA SG TT VN)
 
       # The card types supported by the payment gateway
       self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :jcb]
@@ -169,10 +169,8 @@ module ActiveMerchant #:nodoc:
         add_invoice(post, options)
         add_creditcard_type(post, options[:card_type]) if options[:card_type]
 
-        post.merge!(
-          :Locale => options[:locale] || 'en',
-          :ReturnURL => options[:return_url]
-        )
+        post[:Locale] = options[:locale] || 'en'
+        post[:ReturnURL] = options[:return_url]
 
         add_standard_parameters('pay', post, options[:unique_id])
 
@@ -251,7 +249,7 @@ module ActiveMerchant #:nodoc:
 
       def add_creditcard_type(post, card_type)
         post[:Gateway]  = 'ssl'
-        post[:card] = CARD_TYPES.detect{|ct| ct.am_code == card_type}.migs_long_code
+        post[:card] = CARD_TYPES.detect { |ct| ct.am_code == card_type }.migs_long_code
       end
 
       def parse(body)
@@ -314,11 +312,11 @@ module ActiveMerchant #:nodoc:
       end
 
       def calculate_secure_hash(post, secure_hash)
-        input = post
-                .reject { |k| %i[SecureHash SecureHashType].include?(k) }
-                .sort
-                .map { |(k, v)| "vpc_#{k}=#{v}" }
-                .join('&')
+        input = post.
+                reject { |k| %i[SecureHash SecureHashType].include?(k) }.
+                sort.
+                map { |(k, v)| "vpc_#{k}=#{v}" }.
+                join('&')
         OpenSSL::HMAC.hexdigest('SHA256', [secure_hash].pack('H*'), input).upcase
       end
     end

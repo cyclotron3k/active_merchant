@@ -51,8 +51,6 @@ class RemoteQuickpayV6Test < Test::Unit::TestCase
     assert !response.authorization.blank?
   end
 
-
-
   def test_successful_usd_purchase
     assert response = @gateway.purchase(@amount, @visa, @options.update(:currency => 'USD'))
     assert_equal 'OK', response.message
@@ -199,8 +197,8 @@ class RemoteQuickpayV6Test < Test::Unit::TestCase
 
   def test_invalid_login
     gateway = QuickpayGateway.new(
-        :login => '999999999',
-        :password => ''
+      :login => '999999999',
+      :password => ''
     )
     assert response = gateway.purchase(@amount, @visa, @options)
     assert_equal 'Invalid merchant id', response.message

@@ -12,6 +12,10 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :diners]
 
+      CVV_CODE_MAPPING = {
+        'S' => 'D'
+      }
+
       def initialize(options={})
         requires!(options, :username, :password, :merchant, :pem, :pem_password)
         super
@@ -103,7 +107,7 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      CURRENCY_CODES = Hash.new{|h,k| raise ArgumentError.new("Unsupported currency: #{k}")}
+      CURRENCY_CODES = Hash.new { |h, k| raise ArgumentError.new("Unsupported currency: #{k}") }
       CURRENCY_CODES['AUD'] = 'AUD'
       CURRENCY_CODES['INR'] = 'INR'
 
@@ -168,9 +172,16 @@ module ActiveMerchant #:nodoc:
           message_from(succeeded, raw),
           raw,
           authorization: raw['response.orderNumber'] || raw['response.customerReferenceNumber'],
+          cvv_result: cvv_result(succeeded, raw),
           error_code: error_code_from(succeeded, raw),
           test: test?
         )
+      end
+
+      def cvv_result(succeeded, raw)
+        return unless succeeded
+        code = CVV_CODE_MAPPING[raw['response.cvnResponse']] || raw['response.cvnResponse']
+        CVVResult.new(code)
       end
 
       def headers
@@ -197,7 +208,7 @@ module ActiveMerchant #:nodoc:
 
       def parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|element| parse_element(response, element) }
+          node.elements.each { |element| parse_element(response, element) }
         else
           response[node.name.underscore.to_sym] = node.text
         end

@@ -136,6 +136,7 @@ module ActiveMerchant #:nodoc:
       def void(identification, options = {})
         post = {}
         post[:metadata] = options[:metadata] if options[:metadata]
+        post[:reason] = options[:reason] if options[:reason]
         post[:expand] = [:charge]
         commit(:post, "charges/#{CGI.escape(identification)}/refunds", post, options)
       end
@@ -146,6 +147,7 @@ module ActiveMerchant #:nodoc:
         post[:refund_application_fee] = true if options[:refund_application_fee]
         post[:reverse_transfer] = options[:reverse_transfer] if options[:reverse_transfer]
         post[:metadata] = options[:metadata] if options[:metadata]
+        post[:reason] = options[:reason] if options[:reason]
         post[:expand] = [:charge]
 
         MultiResponse.run(:first) do |r|
@@ -176,7 +178,7 @@ module ActiveMerchant #:nodoc:
 
         post = {}
         add_amount(post, money, options)
-        options.merge!(:key => @fee_refund_api_key) if @fee_refund_api_key
+        options[:key] = @fee_refund_api_key if @fee_refund_api_key
         options.delete(:stripe_account)
 
         refund_fee = commit(:post, "application_fees/#{CGI.escape(identification)}/refunds", post, options)
@@ -297,6 +299,31 @@ module ActiveMerchant #:nodoc:
         end
       end
 
+      def create_source(money, payment, type, options = {})
+        post = {}
+        add_amount(post, money, options, true)
+        post[:type] = type
+        if type == 'card'
+          add_creditcard(post, payment, options)
+          post[:card].delete(:name)
+        elsif type == 'three_d_secure'
+          post[:three_d_secure] = {card: payment}
+          post[:redirect] = {return_url: options[:redirect_url]}
+        end
+        commit(:post, 'sources', post, options)
+      end
+
+      def create_webhook_endpoint(options, events)
+        post = {}
+        post[:url] = options[:callback_url]
+        post[:enabled_events] = events
+        commit(:post, 'webhook_endpoints', post, options)
+      end
+
+      def delete_webhook_endpoint(options)
+        commit(:delete, "webhook_endpoints/#{options[:webhook_id]}", {}, options)
+      end
+
       def create_post_for_auth_or_purchase(money, payment, options)
         post = {}
 
@@ -323,6 +350,7 @@ module ActiveMerchant #:nodoc:
         add_application_fee(post, options)
         add_exchange_rate(post, options)
         add_destination(post, options)
+        add_level_three(post, options)
         post
       end
 
@@ -348,6 +376,21 @@ module ActiveMerchant #:nodoc:
         end
       end
 
+      def add_level_three(post, options)
+        level_three = {}
+
+        copy_when_present(level_three, [:merchant_reference], options)
+        copy_when_present(level_three, [:customer_reference], options)
+        copy_when_present(level_three, [:shipping_address_zip], options)
+        copy_when_present(level_three, [:shipping_from_zip], options)
+        copy_when_present(level_three, [:shipping_amount], options)
+        copy_when_present(level_three, [:line_items], options)
+
+        unless level_three.empty?
+          post[:level3] = level_three
+        end
+      end
+
       def add_expand_parameters(post, options)
         post[:expand] ||= []
         post[:expand].concat(Array.wrap(options[:expand]).map(&:to_sym)).uniq!
@@ -369,7 +412,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_address(post, options)
-        return unless post[:card] && post[:card].kind_of?(Hash)
+        return unless post[:card]&.kind_of?(Hash)
         if address = options[:billing_address] || options[:address]
           post[:card][:address_line1] = address[:address1] if address[:address1]
           post[:card][:address_line2] = address[:address2] if address[:address2]
@@ -397,6 +440,7 @@ module ActiveMerchant #:nodoc:
         if emv_payment?(creditcard)
           add_emv_creditcard(post, creditcard.icc_data)
           post[:card][:read_method] = 'contactless' if creditcard.read_method == 'contactless'
+          post[:card][:read_method] = 'contactless_magstripe_mode' if creditcard.read_method == 'contactless_magstripe'
           if creditcard.encrypted_pin_cryptogram.present? && creditcard.encrypted_pin_ksn.present?
             post[:card][:encrypted_pin] = creditcard.encrypted_pin_cryptogram
             post[:card][:encrypted_pin_key_id] = creditcard.encrypted_pin_ksn
@@ -456,7 +500,7 @@ module ActiveMerchant #:nodoc:
 
       def add_flags(post, options)
         post[:uncaptured] = true if options[:uncaptured]
-        post[:recurring] = true if (options[:eci] == 'recurring' || options[:recurring])
+        post[:recurring] = true if options[:eci] == 'recurring' || options[:recurring]
       end
 
       def add_metadata(post, options = {})
@@ -473,7 +517,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def fetch_application_fee(identification, options = {})
-        options.merge!(:key => @fee_refund_api_key)
+        options[:key] = @fee_refund_api_key
 
         fetch_charge = commit(:get, "charges/#{CGI.escape(identification)}", nil, options)
         application_fee_response!(fetch_charge, "Application fee id could not be retrieved: #{fetch_charge.message}")
@@ -489,25 +533,39 @@ module ActiveMerchant #:nodoc:
 
       def post_data(params)
         return nil unless params
+        flatten_params([], params).join('&')
+      end
 
-        params.map do |key, value|
+      def flatten_params(flattened, params, prefix = nil)
+        params.each do |key, value|
           next if value != false && value.blank?
+          flattened_key = prefix.nil? ? key : "#{prefix}[#{key}]"
           if value.is_a?(Hash)
-            h = {}
-            value.each do |k, v|
-              h["#{key}[#{k}]"] = v unless v.blank?
-            end
-            post_data(h)
+            flatten_params(flattened, value, flattened_key)
           elsif value.is_a?(Array)
-            value.map { |v| "#{key}[]=#{CGI.escape(v.to_s)}" }.join('&')
+            flatten_array(flattened, value, flattened_key)
           else
-            "#{key}=#{CGI.escape(value.to_s)}"
+            flattened << "#{flattened_key}=#{CGI.escape(value.to_s)}"
           end
-        end.compact.join('&')
+        end
+        flattened
+      end
+
+      def flatten_array(flattened, array, prefix)
+        array.each_with_index do |item, idx|
+          key = "#{prefix}[#{idx}]"
+          if item.is_a?(Hash)
+            flatten_params(flattened, item, key)
+          elsif item.is_a?(Array)
+            flatten_array(flattened, item, key)
+          else
+            flattened << "#{key}=#{CGI.escape(item.to_s)}"
+          end
+        end
       end
 
       def headers(options = {})
-        key     = options[:key] || @api_key
+        key = options[:key] || @api_key
         idempotency_key = options[:idempotency_key]
 
         headers = {
@@ -517,8 +575,8 @@ module ActiveMerchant #:nodoc:
           'X-Stripe-Client-User-Agent' => stripe_client_user_agent(options),
           'X-Stripe-Client-User-Metadata' => {:ip => options[:ip]}.to_json
         }
-        headers.merge!('Idempotency-Key' => idempotency_key) if idempotency_key
-        headers.merge!('Stripe-Account' => options[:stripe_account]) if options[:stripe_account]
+        headers['Idempotency-Key'] = idempotency_key if idempotency_key
+        headers['Stripe-Account'] = options[:stripe_account] if options[:stripe_account]
         headers
       end
 
@@ -548,7 +606,7 @@ module ActiveMerchant #:nodoc:
       def commit(method, url, parameters = nil, options = {})
         add_expand_parameters(parameters, options) if parameters
         response = api_request(method, url, parameters, options)
-
+        response['webhook_id'] = options[:webhook_id] if options[:webhook_id]
         success = success_from(response)
 
         card = card_from_response(response)
@@ -588,11 +646,9 @@ module ActiveMerchant #:nodoc:
       end
 
       def response_error(raw_response)
-        begin
-          parse(raw_response)
-        rescue JSON::ParserError
-          json_error(raw_response)
-        end
+        parse(raw_response)
+      rescue JSON::ParserError
+        json_error(raw_response)
       end
 
       def json_error(raw_response)
@@ -680,6 +736,22 @@ module ActiveMerchant #:nodoc:
       def auth_minimum_amount(options)
         return 100 unless options[:currency]
         return MINIMUM_AUTHORIZE_AMOUNTS[options[:currency].upcase] || 100
+      end
+
+      def copy_when_present(dest, dest_path, source, source_path = nil)
+        source_path ||= dest_path
+        source_path.each do |key|
+          return nil unless source[key]
+          source = source[key]
+        end
+
+        if source
+          dest_path.first(dest_path.size - 1).each do |key|
+            dest[key] ||= {}
+            dest = dest[key]
+          end
+          dest[dest_path.last] = source
+        end
       end
     end
   end

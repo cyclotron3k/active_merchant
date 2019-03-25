@@ -2,7 +2,6 @@ require 'rexml/document'
 
 module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
-
     # To learn more about the Moneris (US) gateway, please contact
     # ussales@moneris.com for a copy of their integration guide. For
     # information on remote testing, please see "Test Environment Penny Value
@@ -58,7 +57,7 @@ module ActiveMerchant #:nodoc:
         post[:order_id]   = options[:order_id]
         post[:address]    = options[:billing_address] || options[:address]
         post[:crypt_type] = options[:crypt_type] || @options[:crypt_type]
-        action = (post[:data_key].blank?) ? 'us_preauth' : 'us_res_preauth_cc'
+        action = post[:data_key].blank? ? 'us_preauth' : 'us_res_preauth_cc'
         commit(action, post)
       end
 
@@ -75,11 +74,11 @@ module ActiveMerchant #:nodoc:
         add_address(post, creditcard_or_datakey, options)
         post[:crypt_type] = options[:crypt_type] || @options[:crypt_type]
         action = if creditcard_or_datakey.is_a?(String)
-          'us_res_purchase_cc'
-        elsif card_brand(creditcard_or_datakey) == 'check'
-          'us_ach_debit'
-        elsif post[:data_key].blank?
-          'us_purchase'
+                   'us_res_purchase_cc'
+                 elsif card_brand(creditcard_or_datakey) == 'check'
+                   'us_ach_debit'
+                 elsif post[:data_key].blank?
+                   'us_purchase'
         end
         commit(action, post)
       end
@@ -224,7 +223,7 @@ module ActiveMerchant #:nodoc:
         Response.new(successful?(response), message_from(response[:message]), response,
           :test          => test?,
           :avs_result    => { :code => response[:avs_result_code] },
-          :cvv_result    => response[:cvd_result_code] && response[:cvd_result_code][-1,1],
+          :cvv_result    => response[:cvd_result_code] && response[:cvd_result_code][-1, 1],
           :authorization => authorization_from(response)
         )
       end
@@ -240,7 +239,7 @@ module ActiveMerchant #:nodoc:
       def successful?(response)
         response[:response_code] &&
         response[:complete] &&
-        (0..49).include?(response[:response_code].to_i)
+        (0..49).cover?(response[:response_code].to_i)
       end
 
       def parse(xml)
@@ -292,8 +291,8 @@ module ActiveMerchant #:nodoc:
         tokens = full_address.split(/\s+/)
 
         element = REXML::Element.new('avs_info')
-        element.add_element('avs_street_number').text = tokens.select{|x| x =~ /\d/}.join(' ')
-        element.add_element('avs_street_name').text = tokens.reject{|x| x =~ /\d/}.join(' ')
+        element.add_element('avs_street_number').text = tokens.select { |x| x =~ /\d/ }.join(' ')
+        element.add_element('avs_street_name').text = tokens.reject { |x| x =~ /\d/ }.join(' ')
         element.add_element('avs_zipcode').text = address[:zip]
         element
       end

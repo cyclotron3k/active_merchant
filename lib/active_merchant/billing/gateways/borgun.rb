@@ -76,7 +76,7 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      CURRENCY_CODES = Hash.new{|h,k| raise ArgumentError.new("Unsupported currency for HDFC: #{k}")}
+      CURRENCY_CODES = Hash.new { |h, k| raise ArgumentError.new("Unsupported currency for HDFC: #{k}") }
       CURRENCY_CODES['ISK'] = '352'
       CURRENCY_CODES['EUR'] = '978'
       CURRENCY_CODES['USD'] = '840'
@@ -112,7 +112,7 @@ module ActiveMerchant #:nodoc:
         body.children.each do |node|
           if node.text?
             next
-          elsif (node.elements.size == 0)
+          elsif node.elements.size == 0
             response[node.name.downcase.to_sym] = node.text
           else
             node.elements.each do |childnode|
@@ -130,7 +130,6 @@ module ActiveMerchant #:nodoc:
         post[:Processor] = @options[:processor]
         post[:MerchantID] = @options[:merchant_id]
 
-        url = (test? ? test_url : live_url)
         request = build_request(action, post)
         raw = ssl_post(url(action), request, headers)
         pairs = parse(raw)
@@ -182,7 +181,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def build_request(action, post)
-        mode = (action == 'void') ? 'cancel' : 'get'
+        mode = action == 'void' ? 'cancel' : 'get'
         xml = Builder::XmlMarkup.new :indent => 18
         xml.instruct!(:xml, :version => '1.0', :encoding => 'utf-8')
         xml.tag!("#{mode}Authorization") do
@@ -191,7 +190,7 @@ module ActiveMerchant #:nodoc:
           end
         end
         inner = CGI.escapeHTML(xml.target!)
-        envelope(mode).sub(/{{ :body }}/,inner)
+        envelope(mode).sub(/{{ :body }}/, inner)
       end
 
       def envelope(mode)
@@ -214,7 +213,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def six_random_digits
-        (0...6).map { (48 + rand(10)).chr }.join
+        (0...6).map { rand(48..57).chr }.join
       end
     end
   end

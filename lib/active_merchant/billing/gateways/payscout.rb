@@ -41,7 +41,6 @@ module ActiveMerchant #:nodoc:
         commit('capture', money, post)
       end
 
-
       def refund(money, authorization, options = {})
         post = {}
         post[:transactionid] = authorization
@@ -103,7 +102,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def parse(body)
-        Hash[body.split('&').map{|x|x.split('=')}]
+        Hash[body.split('&').map { |x| x.split('=') }]
       end
 
       def commit(action, money, parameters)
@@ -159,4 +158,3 @@ module ActiveMerchant #:nodoc:
     end
   end
 end
-

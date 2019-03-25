@@ -1,9 +1,19 @@
 require 'test_helper'
 
 class PaymentezTest < Test::Unit::TestCase
+  include CommStub
+
   def setup
     @gateway = PaymentezGateway.new(application_code: 'foo', app_key: 'bar')
     @credit_card = credit_card
+    @elo_credit_card = credit_card('6362970000457013',
+      :month => 10,
+      :year => 2020,
+      :first_name => 'John',
+      :last_name => 'Smith',
+      :verification_value => '737',
+      :brand => 'elo'
+    )
     @amount = 100
 
     @options = {
@@ -22,6 +32,16 @@ class PaymentezTest < Test::Unit::TestCase
     assert_success response
 
     assert_equal 'PR-926', response.authorization
+    assert response.test?
+  end
+
+  def test_successful_purchase_with_elo
+    @gateway.expects(:ssl_post).returns(successful_purchase_with_elo_response)
+
+    response = @gateway.purchase(@amount, @elo_credit_card, @options)
+    assert_success response
+
+    assert_equal 'CI-14952', response.authorization
     assert response.test?
   end
 
@@ -61,6 +81,15 @@ class PaymentezTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_successful_authorize_with_elo
+    @gateway.stubs(:ssl_post).returns(successful_authorize_with_elo_response)
+
+    response = @gateway.authorize(@amount, @elo_credit_card, @options)
+    assert_success response
+    assert_equal 'CI-14953', response.authorization
+    assert response.test?
+  end
+
   def test_successful_authorize_with_token
     @gateway.stubs(:ssl_post).returns(successful_authorize_response)
 
@@ -87,6 +116,15 @@ class PaymentezTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_successful_capture_with_elo
+    @gateway.expects(:ssl_post).returns(successful_capture_with_elo_response)
+
+    response = @gateway.capture(nil, '1234', @options)
+    assert_success response
+    assert_equal 'CI-14953', response.authorization
+    assert response.test?
+  end
+
   def test_successful_capture_with_amount
     @gateway.expects(:ssl_post).returns(successful_capture_response)
 
@@ -107,7 +145,17 @@ class PaymentezTest < Test::Unit::TestCase
   def test_successful_refund
     @gateway.expects(:ssl_post).returns(successful_refund_response)
 
-    response = @gateway.refund(@amount, '1234', @options)
+    response = @gateway.refund(nil, '1234', @options)
+    assert_success response
+    assert response.test?
+  end
+
+  def test_partial_refund
+    response = stub_comms do
+      @gateway.refund(@amount, '1234', @options)
+    end.check_request do |_endpoint, data, _headers|
+      assert_match(/"amount":1.0/, data)
+    end.respond_with(successful_refund_response)
     assert_success response
     assert response.test?
   end
@@ -141,6 +189,14 @@ class PaymentezTest < Test::Unit::TestCase
     response = @gateway.store(@credit_card, @options)
     assert_success response
     assert_equal '14436664108567261211', response.authorization
+  end
+
+  def test_simple_store_with_elo
+    @gateway.expects(:ssl_post).returns(successful_store_with_elo_response)
+
+    response = @gateway.store(@elo_credit_card, @options)
+    assert_success response
+    assert_equal '15550938907932827845', response.authorization
   end
 
   def test_complex_store
@@ -214,7 +270,7 @@ Conn close
   end
 
   def successful_purchase_response
-    %q(
+    '
       {
         "transaction": {
           "status": "success",
@@ -237,11 +293,39 @@ Conn close
           "number": "1111"
         }
       }
-    )
+    '
+  end
+
+  def successful_purchase_with_elo_response
+    '
+      {
+        "transaction": {
+          "status": "success",
+          "payment_date": "2019-03-06T16:47:13.430",
+          "amount": 1,
+          "authorization_code": "TEST00",
+          "installments": 1,
+          "dev_reference": "Testing",
+          "message": "Response by mock",
+          "carrier_code": null,
+          "id": "CI-14952",
+          "status_detail": 3
+        },
+        "card": {
+          "bin": "636297",
+          "expiry_year": "2020",
+          "expiry_month": "10",
+          "transaction_reference": "CI-14952",
+          "type": "el",
+          "number": "7013",
+          "origin": "Paymentez"
+        }
+      }
+    '
   end
 
   def failed_purchase_response
-    %q(
+    '
       {
         "transaction": {
           "status": "failure",
@@ -264,11 +348,11 @@ Conn close
           "number": "4242"
         }
       }
-    )
+    '
   end
 
   def successful_authorize_response
-    %q(
+    '
       {
         "transaction": {
           "status": "success",
@@ -293,11 +377,41 @@ Conn close
           "number": "1111"
         }
       }
-    )
+    '
+  end
+
+  def successful_authorize_with_elo_response
+    '
+      {
+        "transaction": {
+          "status": "success",
+          "payment_date": "2019-03-06T16:53:36.336",
+          "amount": 1,
+          "authorization_code": "TEST00",
+          "installments": 1,
+          "dev_reference": "Testing",
+          "message": "Response by mock",
+          "carrier_code": null,
+          "id": "CI-14953",
+          "status_detail": 0
+        },
+        "card": {
+          "bin": "636297",
+          "status": "",
+          "token": "",
+          "expiry_year": "2020",
+          "expiry_month": "10",
+          "transaction_reference": "CI-14953",
+          "type": "el",
+          "number": "7013",
+          "origin": "Paymentez"
+        }
+      }
+    '
   end
 
   def failed_authorize_response
-    %q(
+    '
       {
         "transaction": {
           "status": "failure",
@@ -323,11 +437,11 @@ Conn close
           "origin": "Paymentez"
         }
       }
-    )
+    '
   end
 
   def successful_capture_response
-    %q(
+    '
       {
         "transaction": {
           "status": "success",
@@ -352,7 +466,37 @@ Conn close
           "number": "1111"
         }
       }
-    )
+    '
+  end
+
+  def successful_capture_with_elo_response
+    '
+      {
+        "transaction": {
+          "status": "success",
+          "payment_date": "2019-03-06T16:53:36",
+          "amount": 1,
+          "authorization_code": "TEST00",
+          "installments": 1,
+          "dev_reference": "Testing",
+          "message": "Response by mock",
+          "carrier_code": null,
+          "id": "CI-14953",
+          "status_detail": 3
+        },
+        "card": {
+          "bin": "636297",
+          "status": "",
+          "token": "",
+          "expiry_year": "2020",
+          "expiry_month": "10",
+          "transaction_reference": "CI-14953",
+          "type": "el",
+          "number": "7013",
+          "origin": "Paymentez"
+        }
+      }
+    '
   end
 
   def failed_capture_response
@@ -382,8 +526,12 @@ Conn close
     '{"card": {"bin": "411111", "status": "valid", "token": "14436664108567261211", "message": "", "expiry_year": "2018", "expiry_month": "9", "transaction_reference": "PR-959", "type": "vi", "number": "1111"}}'
   end
 
+  def successful_store_with_elo_response
+    '{"card": {"bin": "636297", "status": "valid", "token": "15550938907932827845", "message": "", "expiry_year": "2020", "expiry_month": "10", "transaction_reference": "CI-14956", "type": "el", "number": "7013", "origin": "Paymentez"}}'
+  end
+
   def failed_store_response
-    %q(
+    '
       {
         "card": {
           "bin": "424242",
@@ -397,11 +545,11 @@ Conn close
           "number": "4242"
         }
       }
-    )
+    '
   end
 
   def expired_card_response
-    %q(
+    '
       {
        "transaction":{
           "status":"failure",
@@ -425,11 +573,11 @@ Conn close
           "origin":"Paymentez"
        }
       }
-    )
+    '
   end
 
   def crash_response
-    %q(
+    '
       <html>
         <head>
           <title>Internal Server Error</title>
@@ -439,6 +587,6 @@ Conn close
 
         </body>
       </html>
-    )
+    '
   end
 end

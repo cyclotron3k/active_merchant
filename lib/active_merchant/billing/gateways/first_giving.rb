@@ -107,7 +107,7 @@ module ActiveMerchant #:nodoc:
           (response['friendlyErrorMessage'] || response['verboseErrorMessage'] || response['acknowledgement']),
           response,
           authorization: response['transactionId'],
-          test: test?,
+          test: test?
         )
       end
 
@@ -116,7 +116,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def encode(hash)
-        hash.collect{|(k,v)| "#{CGI.escape(k.to_s)}=#{CGI.escape(v.to_s)}"}.join('&')
+        hash.collect { |(k, v)| "#{CGI.escape(k.to_s)}=#{CGI.escape(v.to_s)}" }.join('&')
       end
 
       def creditcard_brand(brand)
@@ -133,11 +133,10 @@ module ActiveMerchant #:nodoc:
       def headers
         {
           'User-Agent'        => "ActiveMerchantBindings/#{ActiveMerchant::VERSION}",
-          'JG_APPLICATIONKEY' => "#{@options[:application_key]}",
-          'JG_SECURITYTOKEN'  => "#{@options[:security_token]}"
+          'JG_APPLICATIONKEY' => @options[:application_key].to_s,
+          'JG_SECURITYTOKEN'  => @options[:security_token].to_s
         }
       end
     end
   end
 end
-

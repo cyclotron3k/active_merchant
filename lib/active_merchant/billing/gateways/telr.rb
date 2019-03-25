@@ -11,7 +11,7 @@ module ActiveMerchant #:nodoc:
       self.supported_countries = ['AE', 'IN', 'SA']
       self.default_currency = 'AED'
       self.money_format = :dollars
-      self.supported_cardtypes = [:visa, :master, :american_express, :maestro, :solo, :jcb]
+      self.supported_cardtypes = [:visa, :master, :american_express, :maestro, :jcb]
 
       CVC_CODE_TRANSLATOR = {
         'Y' => 'M',
@@ -87,9 +87,9 @@ module ActiveMerchant #:nodoc:
 
       def scrub(transcript)
         transcript.
-        gsub(%r((<Number>)[^<]+(<))i, '\1[FILTERED]\2').
-        gsub(%r((<CVV>)[^<]+(<))i, '\1[FILTERED]\2').
-        gsub(%r((<Key>)[^<]+(<))i, '\1[FILTERED]\2')
+          gsub(%r((<Number>)[^<]+(<))i, '\1[FILTERED]\2').
+          gsub(%r((<CVV>)[^<]+(<))i, '\1[FILTERED]\2').
+          gsub(%r((<Key>)[^<]+(<))i, '\1[FILTERED]\2')
       end
 
       private
@@ -190,7 +190,6 @@ module ActiveMerchant #:nodoc:
       def build_xml_request
         builder = Nokogiri::XML::Builder.new(encoding: 'UTF-8') do |xml|
           xml.remote do |doc|
-
             add_authentication(doc)
             yield(doc)
           end
@@ -215,16 +214,16 @@ module ActiveMerchant #:nodoc:
         response = {}
 
         doc = Nokogiri::XML(xml)
-        doc.root.xpath('*').each do |node|
-          if (node.elements.size == 0)
+        doc.root&.xpath('*')&.each do |node|
+          if node.elements.size == 0
             response[node.name.downcase.to_sym] = node.text
           else
             node.elements.each do |childnode|
-              name = "#{childnode.name.downcase}"
+              name = childnode.name.downcase
               response[name.to_sym] = childnode.text
             end
           end
-        end unless doc.root.nil?
+        end
 
         response
       end

@@ -1,4 +1,5 @@
 # encoding: UTF-8
+
 require 'test_helper'
 
 class WirecardTest < Test::Unit::TestCase
@@ -367,10 +368,11 @@ class WirecardTest < Test::Unit::TestCase
             XML
     result_node = '</FunctionResult>'
     auth = 'AuthorizationCode'
-    successful_authorization_response.gsub('ACK', 'NOK') \
-      .gsub(result_node, result_node + error) \
-      .gsub(/<#{auth}>\w+<\/#{auth}>/, "<#{auth}><\/#{auth}>") \
-      .gsub(/<Info>.+<\/Info>/, '')
+    successful_authorization_response.
+      gsub('ACK', 'NOK').
+      gsub(result_node, result_node + error).
+      gsub(/<#{auth}>\w+<\/#{auth}>/, "<#{auth}><\/#{auth}>").
+      gsub(/<Info>.+<\/Info>/, '')
   end
 
   # Capture success
@@ -576,7 +578,6 @@ class WirecardTest < Test::Unit::TestCase
       </WIRECARD_BXML>
     XML
   end
-
 
   # Purchase failure
   def wrong_creditcard_purchase_response

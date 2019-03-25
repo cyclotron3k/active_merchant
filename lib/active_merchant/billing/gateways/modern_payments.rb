@@ -28,10 +28,10 @@ module ActiveMerchant #:nodoc:
       end
 
       private
+
       def cim
         @cim ||= ModernPaymentsCimGateway.new(@options)
       end
     end
   end
 end
-

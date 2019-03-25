@@ -4,8 +4,8 @@ module ActiveMerchant #:nodoc:
       self.display_name = 'GlobalCollect'
       self.homepage_url = 'http://www.globalcollect.com/'
 
-      self.test_url = 'https://api-sandbox.globalcollect.com/'
-      self.live_url = 'https://api.globalcollect.com/'
+      self.test_url = 'https://eu.sandbox.api-ingenico.com'
+      self.live_url = 'https://api.globalcollect.com'
 
       self.supported_countries = ['AD', 'AE', 'AG', 'AI', 'AL', 'AM', 'AO', 'AR', 'AS', 'AT', 'AU', 'AW', 'AX', 'AZ', 'BA', 'BB', 'BD', 'BE', 'BF', 'BG', 'BH', 'BI', 'BJ', 'BL', 'BM', 'BN', 'BO', 'BQ', 'BR', 'BS', 'BT', 'BW', 'BY', 'BZ', 'CA', 'CC', 'CD', 'CF', 'CH', 'CI', 'CK', 'CL', 'CM', 'CN', 'CO', 'CR', 'CU', 'CV', 'CW', 'CX', 'CY', 'CZ', 'DE', 'DJ', 'DK', 'DM', 'DO', 'DZ', 'EC', 'EE', 'EG', 'ER', 'ES', 'ET', 'FI', 'FJ', 'FK', 'FM', 'FO', 'FR', 'GA', 'GB', 'GD', 'GE', 'GF', 'GH', 'GI', 'GL', 'GM', 'GN', 'GP', 'GQ', 'GR', 'GS', 'GT', 'GU', 'GW', 'GY', 'HK', 'HN', 'HR', 'HT', 'HU', 'ID', 'IE', 'IL', 'IM', 'IN', 'IS', 'IT', 'JM', 'JO', 'JP', 'KE', 'KG', 'KH', 'KI', 'KM', 'KN', 'KR', 'KW', 'KY', 'KZ', 'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS', 'LT', 'LU', 'LV', 'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ', 'NA', 'NC', 'NE', 'NG', 'NI', 'NL', 'NO', 'NP', 'NR', 'NU', 'NZ', 'OM', 'PA', 'PE', 'PF', 'PG', 'PH', 'PL', 'PN', 'PS', 'PT', 'PW', 'QA', 'RE', 'RO', 'RS', 'RU', 'RW', 'SA', 'SB', 'SC', 'SE', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL', 'SM', 'SN', 'SR', 'ST', 'SV', 'SZ', 'TC', 'TD', 'TG', 'TH', 'TJ', 'TL', 'TM', 'TN', 'TO', 'TR', 'TT', 'TV', 'TW', 'TZ', 'UA', 'UG', 'US', 'UY', 'UZ', 'VC', 'VE', 'VG', 'VI', 'VN', 'WF', 'WS', 'ZA', 'ZM', 'ZW']
       self.default_currency = 'USD'
@@ -38,7 +38,7 @@ module ActiveMerchant #:nodoc:
 
       def capture(money, authorization, options={})
         post = nestable_hash
-        add_order(post, money, options)
+        add_order(post, money, options, capture: true)
         add_customer_data(post, options)
         add_creator_info(post, options)
         commit(:capture, post, authorization)
@@ -72,8 +72,8 @@ module ActiveMerchant #:nodoc:
       def scrub(transcript)
         transcript.
           gsub(%r((Authorization: )[^\\]*)i, '\1[FILTERED]').
-          gsub(%r(("cardNumber\\":\\")\d+), '\1[FILTERED]').
-          gsub(%r(("cvv\\":\\")\d+), '\1[FILTERED]')
+          gsub(%r(("cardNumber\\+":\\+")\d+), '\1[FILTERED]').
+          gsub(%r(("cvv\\+":\\+")\d+), '\1[FILTERED]')
       end
 
       private
@@ -87,11 +87,12 @@ module ActiveMerchant #:nodoc:
         'diners_club' => '132'
       }
 
-      def add_order(post, money, options)
-        post['order']['amountOfMoney'] = {
-          'amount' => amount(money),
-          'currencyCode' => options[:currency] || currency(money)
-        }
+      def add_order(post, money, options, capture: false)
+        if capture
+          post['amount'] = amount(money)
+        else
+          add_amount(post['order'], money, options)
+        end
         post['order']['references'] = {
           'merchantReference' => options[:order_id],
           'descriptor' => options[:description] # Max 256 chars
@@ -140,9 +141,6 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_customer_data(post, options, payment = nil)
-        post['order']['customer'] = {
-          'merchantCustomerId' => options[:customer]
-        }
         if payment
           post['order']['customer']['personalInformation'] = {
             'name' => {
@@ -151,16 +149,11 @@ module ActiveMerchant #:nodoc:
             }
           }
         end
-        post['order']['companyInformation'] = {
-          'name' => options[:company]
-        }
-        post['order']['contactDetails'] = {
-          'emailAddress' => options[:email]
-        }
+        post['order']['customer']['merchantCustomerId'] = options[:customer] if options[:customer]
+        post['order']['customer']['companyInformation']['name'] = options[:company] if options[:company]
+        post['order']['customer']['contactDetails']['emailAddress'] = options[:email] if options[:email]
         if address = options[:billing_address] || options[:address]
-          post['order']['contactDetails'] = {
-            'phoneNumber' => address[:phone]
-          }
+          post['order']['customer']['contactDetails']['phoneNumber'] = address[:phone] if address[:phone]
         end
       end
 
@@ -169,15 +162,14 @@ module ActiveMerchant #:nodoc:
           post['customer']['address'] = {
             'countryCode' => address[:country]
           }
-          post['customer']['contactDetails'] = {
-            'emailAddress' => options[:email],
-            'phoneNumber' => address[:phone]
-          }
+          post['customer']['contactDetails']['emailAddress'] = options[:email] if options[:email]
+          if address = options[:billing_address] || options[:address]
+            post['customer']['contactDetails']['phoneNumber'] = address[:phone] if address[:phone]
+          end
         end
       end
 
       def add_address(post, creditcard, options)
-        billing_address = options[:billing_address] || options[:address]
         shipping_address = options[:shipping_address]
         if billing_address = options[:billing_address] || options[:address]
           post['order']['customer']['billingAddress'] = {
@@ -208,7 +200,7 @@ module ActiveMerchant #:nodoc:
       def add_fraud_fields(post, options)
         fraud_fields = {}
         fraud_fields.merge!(options[:fraud_fields]) if options[:fraud_fields]
-        fraud_fields.merge!({customerIpAddress: options[:ip]}) if options[:ip]
+        fraud_fields[:customerIpAddress] = options[:ip] if options[:ip]
 
         post['fraudFields'] = fraud_fields unless fraud_fields.empty?
       end
@@ -237,23 +229,33 @@ module ActiveMerchant #:nodoc:
 
       def commit(action, post, authorization = nil)
         begin
-          response = parse(ssl_post(url(action, authorization), post.to_json, headers(action, post, authorization)))
+          raw_response = ssl_post(url(action, authorization), post.to_json, headers(action, post, authorization))
+          response = parse(raw_response)
         rescue ResponseError => e
           if e.response.code.to_i >= 400
             response = parse(e.response.body)
           end
+        rescue JSON::ParserError
+          response = json_error(raw_response)
         end
 
         succeeded = success_from(response)
         Response.new(
-        succeeded,
-        message_from(succeeded, response),
-        response,
-        authorization: authorization_from(succeeded, response),
-        error_code: error_code_from(succeeded, response),
-        test: test?
+          succeeded,
+          message_from(succeeded, response),
+          response,
+          authorization: authorization_from(succeeded, response),
+          error_code: error_code_from(succeeded, response),
+          test: test?
         )
+      end
 
+      def json_error(raw_response)
+        {
+          'error_message' => 'Invalid response received from the Ingenico ePayments (formerly GlobalCollect) API.  Please contact Ingenico ePayments if you continue to receive this message.' \
+            "  (The raw response returned by the API was #{raw_response.inspect})",
+          'status' => 'REJECTED'
+        }
       end
 
       def headers(action, post, authorization = nil)
@@ -294,8 +296,10 @@ EOS
         else
           if errors = response['errors']
             errors.first.try(:[], 'message')
-          elsif status = response['status']
-            'Status: ' + status
+          elsif response['error_message']
+            response['error_message']
+          elsif response['status']
+            'Status: ' + response['status']
           else
             'No message available'
           end
@@ -305,8 +309,10 @@ EOS
       def authorization_from(succeeded, response)
         if succeeded
           response['id'] || response['payment']['id'] || response['paymentResult']['payment']['id']
-        else
+        elsif response['errorId']
           response['errorId']
+        else
+          'GATEWAY ERROR'
         end
       end
 
@@ -323,7 +329,7 @@ EOS
       end
 
       def nestable_hash
-        Hash.new {|h,k| h[k] = Hash.new(&h.default_proc) }
+        Hash.new { |h, k| h[k] = Hash.new(&h.default_proc) }
       end
 
       def capture_requested?(response)

@@ -92,18 +92,6 @@ class RemoteUsaEpayAdvancedTest < Test::Unit::TestCase
       :payment_method => @check,
       :amount => 2500
     }
-
-    payment_methods = [
-      {
-        :name => 'My Visa', # optional
-        :sort => 2, # optional
-        :method => @credit_card
-      },
-      {
-        :name => 'My Checking',
-        :method => @check
-      }
-    ]
   end
 
   # Standard Gateway ==================================================
@@ -271,7 +259,7 @@ class RemoteUsaEpayAdvancedTest < Test::Unit::TestCase
     response = @gateway.add_customer(@options.merge(@customer_options))
     customer_number = response.params['add_customer_return']
 
-    response = @gateway.run_customer_transaction(:customer_number => customer_number,# :method_id => 0, # optional
+    response = @gateway.run_customer_transaction(:customer_number => customer_number, # :method_id => 0, # optional
                                                  :command => 'Sale', :amount => 3000)
     assert response.params['run_customer_transaction_return']
   end
@@ -324,7 +312,7 @@ class RemoteUsaEpayAdvancedTest < Test::Unit::TestCase
 
   # TODO get offline auth_code?
   def test_post_auth
-    @options.merge!(:authorization_code => 123456)
+    @options[:authorization_code] = 123456
     response = @gateway.post_auth(@options)
     assert response.params['post_auth_return']
   end

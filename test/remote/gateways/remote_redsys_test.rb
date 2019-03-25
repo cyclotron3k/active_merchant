@@ -66,7 +66,7 @@ class RemoteRedsysTest < Test::Unit::TestCase
 
     capture = @gateway.capture(100, authorize.authorization)
     assert_success capture
-    assert_match /Refund.*approved/, capture.message
+    assert_match(/Refund.*approved/, capture.message)
   end
 
   def test_successful_authorise_using_vault_id
@@ -179,6 +179,7 @@ class RemoteRedsysTest < Test::Unit::TestCase
 
     assert_equal clean_transcript.include?('[BLANK]'), true
   end
+
   private
 
   def generate_order_id

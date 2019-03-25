@@ -19,7 +19,7 @@ module ActiveMerchant #:nodoc:
       CECA_UI_LESS_LANGUAGE = 'XML'
       CECA_UI_LESS_LANGUAGE_REFUND = '1'
       CECA_UI_LESS_REFUND_PAGE = 'anulacion_xml'
-      CECA_ACTION_REFUND   = 'tpvanularparcialmente' #use partial refund's URL to avoid time frame limitations and decision logic on client side
+      CECA_ACTION_REFUND   = 'tpvanularparcialmente' # use partial refund's URL to avoid time frame limitations and decision logic on client side
       CECA_ACTION_PURCHASE = 'tpv'
       CECA_CURRENCIES_DICTIONARY = {'EUR' => 978, 'USD' => 840, 'GBP' => 826}
 
@@ -152,7 +152,6 @@ module ActiveMerchant #:nodoc:
         end
 
         return response
-
       rescue REXML::ParseException => e
         response[:success] = false
         response[:message] = 'Unable to parse the response.'
@@ -174,11 +173,22 @@ module ActiveMerchant #:nodoc:
         response = parse(xml)
         Response.new(
           response[:success],
-          response[:message],
+          message_from(response),
           response,
           :test => test?,
-          :authorization => build_authorization(response)
+          :authorization => build_authorization(response),
+          :error_code => response[:error_code]
         )
+      end
+
+      def message_from(response)
+        if response[:message] == 'ERROR' && response[:error_message]
+          response[:error_message]
+        elsif response[:error_message]
+          "#{response[:message]} #{response[:error_message]}"
+        else
+          response[:message]
+        end
       end
 
       def post_data(params)

@@ -13,7 +13,6 @@ module ActiveMerchant #:nodoc:
                        :capture       => '32',
                        :credit        => '34' }
 
-
       ENVELOPE_NAMESPACES = { 'xmlns:xsd' => 'http://www.w3.org/2001/XMLSchema',
                               'xmlns:env' => 'http://schemas.xmlsoap.org/soap/envelope/',
                               'xmlns:xsi' => 'http://www.w3.org/2001/XMLSchema-instance'
@@ -161,15 +160,14 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, request)
-         response = parse(ssl_post(self.live_url, build_request(action, request), POST_HEADERS))
+        response = parse(ssl_post(self.live_url, build_request(action, request), POST_HEADERS))
 
-         Response.new(successful?(response), message_from(response), response,
-           :test => test?,
-           :authorization => authorization_from(response),
-           :avs_result => { :code => response[:avs] },
-           :cvv_result => response[:cvv2]
-         )
-
+        Response.new(successful?(response), message_from(response), response,
+          :test => test?,
+          :authorization => authorization_from(response),
+          :avs_result => { :code => response[:avs] },
+          :cvv_result => response[:cvv2]
+        )
       rescue ResponseError => e
         case e.response.code
         when '401'
@@ -185,9 +183,9 @@ module ActiveMerchant #:nodoc:
 
       def authorization_from(response)
         if response[:authorization_num] && response[:transaction_tag]
-           "#{response[:authorization_num]};#{response[:transaction_tag]}"
+          "#{response[:authorization_num]};#{response[:transaction_tag]}"
         else
-           ''
+          ''
         end
       end
 
@@ -213,7 +211,7 @@ module ActiveMerchant #:nodoc:
           parse_elements(response, root)
         end
 
-        response.delete_if{ |k,v| SENSITIVE_FIELDS.include?(k) }
+        response.delete_if { |k, v| SENSITIVE_FIELDS.include?(k) }
       end
 
       def parse_elements(response, root)
@@ -224,4 +222,3 @@ module ActiveMerchant #:nodoc:
     end
   end
 end
-

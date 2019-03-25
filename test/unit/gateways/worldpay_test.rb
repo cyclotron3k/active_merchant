@@ -4,13 +4,21 @@ class WorldpayTest < Test::Unit::TestCase
   include CommStub
 
   def setup
-   @gateway = WorldpayGateway.new(
-      :login => 'testlogin',
-      :password => 'testpassword'
-    )
+    @gateway = WorldpayGateway.new(
+       :login => 'testlogin',
+       :password => 'testpassword'
+     )
 
     @amount = 100
     @credit_card = credit_card('4242424242424242')
+    @elo_credit_card = credit_card('4514 1600 0000 0008',
+      :month => 10,
+      :year => 2020,
+      :first_name => 'John',
+      :last_name => 'Smith',
+      :verification_value => '737',
+      :brand => 'elo'
+    )
     @options = {:order_id => 1}
   end
 
@@ -53,6 +61,21 @@ class WorldpayTest < Test::Unit::TestCase
     assert_success response
   end
 
+  def test_authorize_passes_stored_credential_options
+    options = @options.merge(
+      stored_credential_usage: 'USED',
+      stored_credential_initiated_reason: 'UNSCHEDULED',
+      stored_credential_transaction_id: '000000000000020005060720116005060'
+    )
+    response = stub_comms do
+      @gateway.authorize(@amount, @credit_card, options)
+    end.check_request do |endpoint, data, headers|
+      assert_match(/<storedCredentials usage\=\"USED\" merchantInitiatedReason\=\"UNSCHEDULED\"\>/, data)
+      assert_match(/<schemeTransactionIdentifier\>000000000000020005060720116005060\<\/schemeTransactionIdentifier\>/, data)
+    end.respond_with(successful_authorize_response)
+    assert_success response
+  end
+
   def test_failed_authorize
     response = stub_comms do
       @gateway.authorize(@amount, @credit_card, @options)
@@ -65,6 +88,13 @@ class WorldpayTest < Test::Unit::TestCase
     response = stub_comms do
       @gateway.purchase(@amount, @credit_card, @options)
     end.respond_with(successful_authorize_response, successful_capture_response)
+    assert_success response
+  end
+
+  def test_successful_purchase_with_elo
+    response = stub_comms do
+      @gateway.purchase(@amount, @credit_card, @options.merge(currency: 'BRL'))
+    end.respond_with(successful_authorize_with_elo_response, successful_capture_with_elo_response)
     assert_success response
   end
 
@@ -97,7 +127,7 @@ class WorldpayTest < Test::Unit::TestCase
     end.respond_with(successful_capture_response)
 
     assert_success response
-    assert_equal %w(authorize capture), response.responses.collect{|e| e.params['action']}
+    assert_equal(%w(authorize capture), response.responses.collect { |e| e.params['action'] })
   end
 
   def test_successful_void
@@ -107,6 +137,15 @@ class WorldpayTest < Test::Unit::TestCase
     assert_success response
     assert_equal 'SUCCESS', response.message
     assert_equal '924e810350efc21a989e0ac7727ce43b', response.params['cancel_received_order_code']
+  end
+
+  def test_successful_void_with_elo
+    response = stub_comms do
+      @gateway.void(@options[:order_id], @options)
+    end.respond_with(successful_void_inquiry_with_elo_response, successful_void_with_elo_response)
+    assert_success response
+    assert_equal 'SUCCESS', response.message
+    assert_equal '3a10f83fb9bb765488d0b3eb153879d7', response.params['cancel_received_order_code']
   end
 
   def test_void_fails_unless_status_is_authorized
@@ -164,14 +203,24 @@ class WorldpayTest < Test::Unit::TestCase
     assert_success response
   end
 
-  def test_successful_credit
+  def test_successful_visa_credit
     response = stub_comms do
       @gateway.credit(@amount, @credit_card, @options)
     end.check_request do |endpoint, data, headers|
       assert_match(/<paymentDetails action="REFUND">/, data)
-    end.respond_with(successful_credit_response)
+    end.respond_with(successful_visa_credit_response)
     assert_success response
     assert_equal '3d4187536044bd39ad6a289c4339c41c', response.authorization
+  end
+
+  def test_successful_mastercard_credit
+    response = stub_comms do
+      @gateway.credit(@amount, @credit_card, @options)
+    end.check_request do |endpoint, data, headers|
+      assert_match(/<paymentDetails action="REFUND">/, data)
+    end.respond_with(successful_mastercard_credit_response)
+    assert_success response
+    assert_equal 'f25257d251b81fb1fd9c210973c941ff', response.authorization
   end
 
   def test_description
@@ -209,7 +258,7 @@ class WorldpayTest < Test::Unit::TestCase
       if data =~ /capture/
         t = Time.now
         assert_tag_with_attributes 'date',
-            {'dayOfMonth' => t.day.to_s, 'month' => t.month.to_s, 'year' => t.year.to_s},
+          {'dayOfMonth' => t.day.to_s, 'month' => t.month.to_s, 'year' => t.year.to_s},
           data
       end
     end.respond_with(successful_inquiry_response, successful_capture_response)
@@ -220,7 +269,7 @@ class WorldpayTest < Test::Unit::TestCase
       @gateway.authorize(100, @credit_card, @options)
     end.check_request do |endpoint, data, headers|
       assert_tag_with_attributes 'amount',
-          {'value' => '100', 'exponent' => '2', 'currencyCode' => 'GBP'},
+        {'value' => '100', 'exponent' => '2', 'currencyCode' => 'GBP'},
         data
     end.respond_with(successful_authorize_response)
   end
@@ -230,7 +279,7 @@ class WorldpayTest < Test::Unit::TestCase
       @gateway.authorize(10000, @credit_card, @options.merge(currency: :JPY))
     end.check_request do |endpoint, data, headers|
       assert_tag_with_attributes 'amount',
-          {'value' => '100', 'exponent' => '0', 'currencyCode' => 'JPY'},
+        {'value' => '100', 'exponent' => '0', 'currencyCode' => 'JPY'},
         data
     end.respond_with(successful_authorize_response)
 
@@ -238,7 +287,7 @@ class WorldpayTest < Test::Unit::TestCase
       @gateway.authorize(10000, @credit_card, @options.merge(currency: :OMR))
     end.check_request do |endpoint, data, headers|
       assert_tag_with_attributes 'amount',
-          {'value' => '10000', 'exponent' => '3', 'currencyCode' => 'OMR'},
+        {'value' => '10000', 'exponent' => '3', 'currencyCode' => 'OMR'},
         data
     end.respond_with(successful_authorize_response)
   end
@@ -352,6 +401,26 @@ class WorldpayTest < Test::Unit::TestCase
     end.respond_with(successful_authorize_response)
   end
 
+  def test_instalments
+    stub_comms do
+      @gateway.purchase(100, @credit_card, @options.merge(instalments: 3))
+    end.check_request do |endpoint, data, headers|
+      unless /<capture>/ =~ data
+        assert_match %r(<instalments>3</instalments>), data
+        assert_no_match %r(cpf), data
+      end
+    end.respond_with(successful_authorize_response, successful_capture_response)
+
+    stub_comms do
+      @gateway.purchase(100, @credit_card, @options.merge(instalments: 3, cpf: 12341234))
+    end.check_request do |endpoint, data, headers|
+      unless /<capture>/ =~ data
+        assert_match %r(<instalments>3</instalments>), data
+        assert_match %r(<cpf>12341234</cpf>), data
+      end
+    end.respond_with(successful_authorize_response, successful_capture_response)
+  end
+
   def test_ip
     stub_comms do
       @gateway.authorize(100, @credit_card, @options.merge(ip: '192.137.11.44'))
@@ -417,7 +486,6 @@ class WorldpayTest < Test::Unit::TestCase
     end.check_request do |endpoint, data, headers|
       assert_equal WorldpayGateway.test_url, endpoint
     end.respond_with(successful_authorize_response, successful_capture_response)
-
   ensure
     ActiveMerchant::Billing::Base.mode = :test
   end
@@ -448,6 +516,13 @@ class WorldpayTest < Test::Unit::TestCase
     assert_success response
   end
 
+  def test_successful_verify_with_elo
+    @gateway.expects(:ssl_post).times(2).returns(successful_authorize_with_elo_response, successful_void_with_elo_response)
+
+    response = @gateway.verify(@elo_credit_card, @options.merge(currency: 'BRL'))
+    assert_success response
+  end
+
   def test_successful_verify_with_failed_void
     @gateway.expects(:ssl_post).times(2).returns(successful_authorize_response, failed_void_response)
 
@@ -462,11 +537,58 @@ class WorldpayTest < Test::Unit::TestCase
     assert_failure response
   end
 
+  def test_3ds_name_coersion
+    @options[:execute_threed] = true
+    response = stub_comms do
+      @gateway.purchase(@amount, @credit_card, @options)
+    end.check_request do |endpoint, data, headers|
+      if /<submit>/ =~ data
+        assert_match %r{<cardHolderName>3D</cardHolderName>}, data
+      end
+    end.respond_with(successful_authorize_response, successful_capture_response)
+    assert_success response
+  end
+
   def test_transcript_scrubbing
     assert_equal scrubbed_transcript, @gateway.scrub(transcript)
   end
 
+  def test_3ds_version_1_request
+    stub_comms do
+      @gateway.authorize(@amount, @credit_card, @options.merge(three_d_secure_option('1.0.2')))
+    end.check_request do |endpoint, data, headers|
+      assert_match %r{<paymentService version="1.4" merchantCode="testlogin">}, data
+      assert_match %r{<eci>eci</eci>}, data
+      assert_match %r{<cavv>cavv</cavv>}, data
+      assert_match %r{<xid>xid</xid>}, data
+      assert_match %r{<threeDSVersion>1.0.2</threeDSVersion>}, data
+    end.respond_with(successful_authorize_response)
+  end
+
+  def test_3ds_version_2_request
+    stub_comms do
+      @gateway.authorize(@amount, @credit_card, @options.merge(three_d_secure_option('2.1.0')))
+    end.check_request do |endpoint, data, headers|
+      assert_match %r{<paymentService version="1.4" merchantCode="testlogin">}, data
+      assert_match %r{<eci>eci</eci>}, data
+      assert_match %r{<cavv>cavv</cavv>}, data
+      assert_match %r{<dsTransactionId>xid</dsTransactionId>}, data
+      assert_match %r{<threeDSVersion>2.1.0</threeDSVersion>}, data
+    end.respond_with(successful_authorize_response)
+  end
+
   private
+
+  def three_d_secure_option(version)
+    {
+      three_d_secure: {
+        eci: 'eci',
+        cavv: 'cavv',
+        xid: 'xid',
+        version: version
+      }
+    }
+  end
 
   def successful_authorize_response
     <<-RESPONSE
@@ -525,6 +647,86 @@ class WorldpayTest < Test::Unit::TestCase
           </ok>
         </reply>
       </paymentService>
+    RESPONSE
+  end
+
+  def successful_authorize_with_elo_response
+    <<-RESPONSE
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE paymentService PUBLIC "-//WorldPay//DTD WorldPay PaymentService v1//EN" "http://dtd.worldpay.com/paymentService_v1.dtd">
+      <paymentService version="1.4" merchantCode="SPREEDLY">
+        <reply>
+          <orderStatus orderCode="9fe31a79de5f6aa3ce1ed7bea7edbf42">
+            <payment>
+              <paymentMethod>ELO-SSL</paymentMethod>
+              <amount value="100" currencyCode="BRL" exponent="2" debitCreditIndicator="credit" />
+              <lastEvent>AUTHORISED</lastEvent>
+              <CVCResultCode description="C" />
+              <AVSResultCode description="H" />
+              <balance accountType="IN_PROCESS_AUTHORISED">
+                <amount value="100" currencyCode="BRL" exponent="2" debitCreditIndicator="credit" />
+              </balance>
+              <cardNumber>4514********0008</cardNumber>
+              <riskScore value="21" />
+            </payment>
+          </orderStatus>
+        </reply>
+      </paymentService>
+    RESPONSE
+  end
+
+  def successful_capture_with_elo_response
+    <<-RESPONSE
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE paymentService PUBLIC "-//WorldPay//DTD WorldPay PaymentService v1//EN" "http://dtd.worldpay.com/paymentService_v1.dtd">
+      <paymentService version="1.4" merchantCode="SPREEDLY">
+        <reply>
+          <ok>
+            <captureReceived orderCode="9fe31a79de5f6aa3ce1ed7bea7edbf42">
+              <amount value="100" currencyCode="BRL" exponent="2" debitCreditIndicator="credit" />
+            </captureReceived>
+          </ok>
+        </reply>
+      </paymentService>
+    RESPONSE
+  end
+
+  def successful_void_inquiry_with_elo_response
+    <<-RESPONSE
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE paymentService PUBLIC "-//WorldPay//DTD WorldPay PaymentService v1//EN" "http://dtd.worldpay.com/paymentService_v1.dtd">
+    <paymentService version="1.4" merchantCode="SPREEDLY">
+      <reply>
+        <orderStatus orderCode="eda0b101428892fdb32e2fc617a7f5e0">
+          <payment>
+            <paymentMethod>ELO-SSL</paymentMethod>
+            <amount value="100" currencyCode="BRL" exponent="2" debitCreditIndicator="credit" />
+            <lastEvent>AUTHORISED</lastEvent>
+            <CVCResultCode description="C" />
+            <AVSResultCode description="H" />
+            <balance accountType="IN_PROCESS_AUTHORISED">
+              <amount value="100" currencyCode="BRL" exponent="2" debitCreditIndicator="credit" />
+            </balance>
+            <cardNumber>4514********0008</cardNumber>
+            <riskScore value="21" />
+          </payment>
+        </orderStatus>
+      </reply>
+    </paymentService>
+    RESPONSE
+  end
+
+  def successful_void_with_elo_response
+    <<-RESPONSE
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE paymentService PUBLIC "-//WorldPay//DTD WorldPay PaymentService v1//EN" "http://dtd.worldpay.com/paymentService_v1.dtd">
+    <paymentService version="1.4" merchantCode="SPREEDLY">
+      <reply>
+        <ok>
+          <cancelReceived orderCode="3a10f83fb9bb765488d0b3eb153879d7" />
+        </ok>
+      </reply>
+    </paymentService>
     RESPONSE
   end
 
@@ -636,7 +838,7 @@ class WorldpayTest < Test::Unit::TestCase
       <payment>
         <paymentMethod>VISA-SSL</paymentMethod>
         <amount value="100" currencyCode="GBP" exponent="2" debitCreditIndicator="credit"/>
-        <lastEvent>#{ last_event }</lastEvent>
+        <lastEvent>#{last_event}</lastEvent>
         <CVCResultCode description="UNKNOWN"/>
         <AVSResultCode description="NOT SUPPLIED BY SHOPPER"/>
         <balance accountType="IN_PROCESS_AUTHORISED">
@@ -714,7 +916,7 @@ class WorldpayTest < Test::Unit::TestCase
     REQUEST
   end
 
-  def successful_credit_response
+  def successful_visa_credit_response
     <<-RESPONSE
       <?xml version="1.0" encoding="UTF-8"?>
       <!DOCTYPE paymentService PUBLIC "-//WorldPay//DTD WorldPay PaymentService v1//EN"
@@ -728,6 +930,29 @@ class WorldpayTest < Test::Unit::TestCase
           </ok>
         </reply>
       </paymentService>
+    RESPONSE
+  end
+
+  def successful_mastercard_credit_response
+    <<~RESPONSE
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE paymentService PUBLIC "-//WorldPay//DTD WorldPay PaymentService v1//EN"
+                                    "http://dtd.worldpay.com/paymentService_v1.dtd">
+    <paymentService version="1.4" merchantCode="YOUR_MERCHANT_CODE">
+      <reply>
+        <orderStatus orderCode="f25257d251b81fb1fd9c210973c941ff\">
+          <payment>
+            <paymentMethod>ECMC_DEBIT-SSL</paymentMethod>
+            <amount value="1110" currencyCode="GBP" exponent="2" debitCreditIndicator="credit"/>
+            <lastEvent>SENT_FOR_REFUND</lastEvent>
+            <AuthorisationId id="987654"/>
+            <balance accountType="IN_PROCESS_CAPTURED">
+              <amount value="1110" currencyCode="GBP" exponent="2" debitCreditIndicator="debit"/>
+            </balance>
+          </payment>
+        </orderStatus>
+      </reply>
+    </paymentService>
     RESPONSE
   end
 

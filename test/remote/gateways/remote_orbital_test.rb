@@ -40,15 +40,16 @@ class RemoteOrbitalGatewayTest < Test::Unit::TestCase
     }
 
     @test_suite = [
-      {:card => :visa, :AVSzip => 11111, :CVD =>	111,  :amount => 3000},
-      {:card => :visa, :AVSzip => 33333, :CVD =>	nil,  :amount => 3801},
-      {:card => :mc,	 :AVSzip => 44444, :CVD =>	nil,  :amount => 4100},
-      {:card => :mc,	 :AVSzip => 88888, :CVD =>	666,  :amount => 1102},
-      {:card => :amex, :AVSzip => 55555, :CVD =>	nil,  :amount => 105500},
-      {:card => :amex, :AVSzip => 66666, :CVD =>	2222, :amount => 7500},
-      {:card => :ds,	 :AVSzip => 77777, :CVD =>	nil,  :amount => 1000},
-      {:card => :ds, 	 :AVSzip => 88888, :CVD =>	444,  :amount => 6303},
-      {:card => :jcb,  :AVSzip => 33333, :CVD =>	nil,  :amount => 2900}]
+      {:card => :visa, :AVSzip => 11111, :CVD => 111,  :amount => 3000},
+      {:card => :visa, :AVSzip => 33333, :CVD => nil,  :amount => 3801},
+      {:card => :mc,   :AVSzip => 44444, :CVD => nil,  :amount => 4100},
+      {:card => :mc,   :AVSzip => 88888, :CVD => 666,  :amount => 1102},
+      {:card => :amex, :AVSzip => 55555, :CVD => nil,  :amount => 105500},
+      {:card => :amex, :AVSzip => 66666, :CVD => 2222, :amount => 7500},
+      {:card => :ds,   :AVSzip => 77777, :CVD => nil,  :amount => 1000},
+      {:card => :ds,   :AVSzip => 88888, :CVD => 444,  :amount => 6303},
+      {:card => :jcb,  :AVSzip => 33333, :CVD => nil,  :amount => 2900}
+    ]
   end
 
   def test_successful_purchase
@@ -131,6 +132,79 @@ class RemoteOrbitalGatewayTest < Test::Unit::TestCase
     assert_false response.authorization.blank?
   end
 
+  def test_successful_purchase_with_mit_stored_credentials
+    mit_stored_credentials = {
+      mit_msg_type: 'MUSE',
+      mit_stored_credential_ind: 'Y',
+      mit_submitted_transaction_id: 'abcdefg12345678'
+    }
+
+    response = @gateway.purchase(@amount, @credit_card, @options.merge(mit_stored_credentials))
+
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
+  def test_successful_purchase_with_cit_stored_credentials
+    cit_options = {
+      mit_msg_type: 'CUSE',
+      mit_stored_credential_ind: 'Y'
+    }
+
+    response = @gateway.purchase(@amount, @credit_card, @options.merge(cit_options))
+
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
+  def test_successful_purchase_with_normalized_mit_stored_credentials
+    stored_credential = {
+      stored_credential: {
+        initial_transaction: false,
+        initiator: 'merchant',
+        reason_type: 'unscheduled',
+        network_transaction_id: 'abcdefg12345678'
+      }
+    }
+
+    response = @gateway.purchase(@amount, @credit_card, @options.merge(stored_credential))
+
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
+  def test_successful_purchase_with_normalized_cit_stored_credentials
+    stored_credential = {
+      stored_credential: {
+        initial_transaction: true,
+        initiator: 'customer',
+        reason_type: 'unscheduled'
+      }
+    }
+
+    response = @gateway.purchase(@amount, @credit_card, @options.merge(stored_credential))
+
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
+  def test_successful_purchase_with_overridden_normalized_stored_credentials
+    stored_credential = {
+      stored_credential: {
+        initial_transaction: false,
+        initiator: 'merchant',
+        reason_type: 'unscheduled',
+        network_transaction_id: 'abcdefg12345678'
+      },
+      mit_msg_type: 'MRSB'
+    }
+
+    response = @gateway.purchase(@amount, @credit_card, @options.merge(stored_credential))
+
+    assert_success response
+    assert_equal 'Approved', response.message
+  end
+
   # Amounts of x.01 will fail
   def test_unsuccessful_purchase
     assert response = @gateway.purchase(101, @declined_card, @options)
@@ -197,7 +271,7 @@ class RemoteOrbitalGatewayTest < Test::Unit::TestCase
     for suite in @test_suite do
       amount = suite[:amount]
       card = credit_card(@cards[suite[:card]], :verification_value => suite[:CVD])
-      @options[:address].merge!(:zip => suite[:AVSzip])
+      @options[:address][:zip] = suite[:AVSzip]
       assert response = @gateway.authorize(amount, card, @options)
       assert_kind_of Response, response
 
@@ -215,7 +289,7 @@ class RemoteOrbitalGatewayTest < Test::Unit::TestCase
     for suite in @test_suite do
       amount = suite[:amount]
       card = credit_card(@cards[suite[:card]], :verification_value => suite[:CVD])
-      options = @options; options[:address].merge!(:zip => suite[:AVSzip])
+      options = @options; options[:address][:zip] = suite[:AVSzip]
       assert response = @gateway.purchase(amount, card, options)
       assert_kind_of Response, response
 
@@ -230,7 +304,7 @@ class RemoteOrbitalGatewayTest < Test::Unit::TestCase
 
   # ==== Section C
   def test_mark_for_capture_transactions
-    [[:visa, 3000],[:mc, 4100],[:amex, 105500],[:ds, 1000],[:jcb, 2900]].each do |suite|
+    [[:visa, 3000], [:mc, 4100], [:amex, 105500], [:ds, 1000], [:jcb, 2900]].each do |suite|
       amount = suite[1]
       card = credit_card(@cards[suite[0]])
       assert auth_response = @gateway.authorize(amount, card, @options)
@@ -246,7 +320,7 @@ class RemoteOrbitalGatewayTest < Test::Unit::TestCase
 
   # ==== Section D
   def test_refund_transactions
-    [[:visa, 1200],[:mc, 1100],[:amex, 105500],[:ds, 1000],[:jcb, 2900]].each do |suite|
+    [[:visa, 1200], [:mc, 1100], [:amex, 105500], [:ds, 1000], [:jcb, 2900]].each do |suite|
       amount = suite[1]
       card = credit_card(@cards[suite[0]])
       assert purchase_response = @gateway.purchase(amount, card, @options)

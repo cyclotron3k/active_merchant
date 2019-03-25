@@ -23,14 +23,14 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       self.default_currency = 'AUD'
 
-      #Transactions currently accepted by NAB Transact XML API
+      # Transactions currently accepted by NAB Transact XML API
       TRANSACTIONS = {
-        :purchase => 0,           #Standard Payment
-        :refund => 4,             #Refund
-        :void => 6,               #Client Reversal (Void)
-        :unmatched_refund => 666, #Unmatched Refund
-        :authorization => 10,     #Preauthorise
-        :capture => 11            #Preauthorise Complete (Advice)
+        :purchase => 0,           # Standard Payment
+        :refund => 4,             # Refund
+        :void => 6,               # Client Reversal (Void)
+        :unmatched_refund => 666, # Unmatched Refund
+        :authorization => 10,     # Preauthorise
+        :capture => 11            # Preauthorise Complete (Advice)
       }
 
       PERIODIC_TYPES = {
@@ -40,7 +40,6 @@ module ActiveMerchant #:nodoc:
       }
 
       SUCCESS_CODES = [ '00', '08', '11', '16', '77' ]
-
 
       def initialize(options = {})
         requires!(options, :login, :password)
@@ -135,7 +134,7 @@ module ActiveMerchant #:nodoc:
         xml.target!
       end
 
-      #Generate payment request XML
+      # Generate payment request XML
       # - API is set to allow multiple Txn's but currently only allows one
       # - txnSource = 23 - (XML)
       def build_request(action, body)
@@ -281,7 +280,7 @@ module ActiveMerchant #:nodoc:
 
       def parse_element(response, node)
         if node.has_elements?
-          node.elements.each{|element| parse_element(response, element) }
+          node.elements.each { |element| parse_element(response, element) }
         else
           response[node.name.underscore.to_sym] = node.text
         end

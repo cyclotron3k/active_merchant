@@ -97,7 +97,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def scrub(transcript)
-         force_utf8(transcript).
+        force_utf8(transcript).
           gsub(%r((M_id=)[^&]*), '\1[FILTERED]').
           gsub(%r((M_key=)[^&]*), '\1[FILTERED]').
           gsub(%r((C_cardnumber=)[^&]*), '\1[FILTERED]').
@@ -179,9 +179,9 @@ module ActiveMerchant #:nodoc:
 
       def parse_check(data)
         response = {}
-        response[:success]          = data[1,1]
-        response[:code]             = data[2,6].strip
-        response[:message]          = data[8,32].strip
+        response[:success]          = data[1, 1]
+        response[:code]             = data[2, 6].strip
+        response[:message]          = data[8, 32].strip
         response[:risk]             = data[40, 2]
         response[:reference]        = data[42, 10]
 
@@ -194,9 +194,9 @@ module ActiveMerchant #:nodoc:
 
       def parse_credit_card(data)
         response = {}
-        response[:success]          = data[1,1]
-        response[:code]             = data[2,6]
-        response[:message]          = data[8,32].strip
+        response[:success]          = data[1, 1]
+        response[:code]             = data[2, 6]
+        response[:message]          = data[8, 32].strip
         response[:front_end]        = data[40, 2]
         response[:cvv_result]       = data[42, 1]
         response[:avs_result]       = data[43, 1].strip
@@ -364,9 +364,12 @@ module ActiveMerchant #:nodoc:
         end
 
         def commit(action, request)
-          response = parse(@gateway.ssl_post(@live_url,
-            build_soap_request(action, request),
-            build_headers(action))
+          response = parse(
+            @gateway.ssl_post(
+              @live_url,
+              build_soap_request(action, request),
+              build_headers(action)
+            )
           )
 
           case action

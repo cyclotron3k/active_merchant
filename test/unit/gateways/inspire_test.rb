@@ -60,7 +60,7 @@ class InspireTest < Test::Unit::TestCase
   def test_add_address
     result = {}
 
-    @gateway.send(:add_address, result, nil, :billing_address => {:address1 => '164 Waverley Street', :country => 'US', :state => 'CO'} )
+    @gateway.send(:add_address, result, nil, :billing_address => {:address1 => '164 Waverley Street', :country => 'US', :state => 'CO'})
     assert_equal ['address1', 'city', 'company', 'country', 'phone', 'state', 'zip'], result.stringify_keys.keys.sort
     assert_equal 'CO', result[:state]
     assert_equal '164 Waverley Street', result[:address1]
@@ -86,7 +86,7 @@ class InspireTest < Test::Unit::TestCase
   def test_blank_store_doesnt_add_vault_flag
     result = {}
 
-    @gateway.send(:add_creditcard, result, @credit_card, {} )
+    @gateway.send(:add_creditcard, result, @credit_card, {})
     assert_equal ['ccexp', 'ccnumber', 'cvv', 'firstname', 'lastname'], result.stringify_keys.keys.sort
     assert_nil result[:customer_vault]
   end
@@ -140,4 +140,3 @@ class InspireTest < Test::Unit::TestCase
     'response=3&responsetext=Invalid Transaction ID specified REFID:3150951931&authcode=&transactionid=&avsresponse=&cvvresponse=&orderid=&type=refund&response_code=300'
   end
 end
-

@@ -7,7 +7,7 @@ module ActiveMerchant #:nodoc:
       self.default_currency = 'GBP'
       self.money_format = :cents
       self.supported_countries = %w(HK GB AU AD AR BE BR CA CH CN CO CR CY CZ DE DK ES FI FR GI GR HU IE IN IT JP LI LU MC MT MY MX NL NO NZ PA PE PL PT SE SG SI SM TR UM VA)
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro, :laser, :switch]
+      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :maestro, :elo]
       self.currencies_without_fractions = %w(HUF IDR ISK JPY KRW)
       self.currencies_with_three_decimal_places = %w(BHD KWD OMR RSD TND)
       self.homepage_url = 'http://www.worldpay.com/'
@@ -20,9 +20,28 @@ module ActiveMerchant #:nodoc:
         'american_express' => 'AMEX-SSL',
         'jcb'              => 'JCB-SSL',
         'maestro'          => 'MAESTRO-SSL',
-        'laser'            => 'LASER-SSL',
         'diners_club'      => 'DINERS-SSL',
-        'switch'           => 'MAESTRO-SSL'
+        'elo'              => 'ELO-SSL'
+      }
+
+      AVS_CODE_MAP = {
+        'A' => 'M', # Match
+        'B' => 'P', # Postcode matches, address not verified
+        'C' => 'Z', # Postcode matches, address does not match
+        'D' => 'B', # Address matched; postcode not checked
+        'E' => 'I', # Address and postal code not checked
+        'F' => 'A', # Address matches, postcode does not match
+        'G' => 'C', # Address does not match, postcode not checked
+        'H' => 'I', # Address and postcode not provided
+        'I' => 'C', # Address not checked postcode does not match
+        'J' => 'C', # Address and postcode does not match
+      }
+
+      CVC_CODE_MAP = {
+        'A' => 'M', # CVV matches
+        'B' => 'P', # Not provided
+        'C' => 'P', # Not checked
+        'D' => 'N', # Does not match
       }
 
       def initialize(options = {})
@@ -32,8 +51,8 @@ module ActiveMerchant #:nodoc:
 
       def purchase(money, payment_method, options = {})
         MultiResponse.run do |r|
-          r.process{authorize(money, payment_method, options)}
-          r.process{capture(money, r.authorization, options.merge(:authorization_validated => true))}
+          r.process { authorize(money, payment_method, options) }
+          r.process { capture(money, r.authorization, options.merge(:authorization_validated => true)) }
         end
       end
 
@@ -44,19 +63,19 @@ module ActiveMerchant #:nodoc:
 
       def capture(money, authorization, options = {})
         MultiResponse.run do |r|
-          r.process{inquire_request(authorization, options, 'AUTHORISED')} unless options[:authorization_validated]
+          r.process { inquire_request(authorization, options, 'AUTHORISED') } unless options[:authorization_validated]
           if r.params
             authorization_currency = r.params['amount_currency_code']
             options = options.merge(:currency => authorization_currency) if authorization_currency.present?
           end
-          r.process{capture_request(money, authorization, options)}
+          r.process { capture_request(money, authorization, options) }
         end
       end
 
       def void(authorization, options = {})
         MultiResponse.run do |r|
-          r.process{inquire_request(authorization, options, 'AUTHORISED')} unless options[:authorization_validated]
-          r.process{cancel_request(authorization, options)}
+          r.process { inquire_request(authorization, options, 'AUTHORISED') } unless options[:authorization_validated]
+          r.process { cancel_request(authorization, options) }
         end
       end
 
@@ -69,7 +88,7 @@ module ActiveMerchant #:nodoc:
         return response if response.success?
         return response unless options[:force_full_refund_if_unsettled]
 
-        void(authorization, options ) if response.params['last_event'] == 'AUTHORISED'
+        void(authorization, options) if response.params['last_event'] == 'AUTHORISED'
       end
 
       # Credits only function on a Merchant ID/login/profile flagged for Payouts
@@ -121,7 +140,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def credit_request(money, payment_method, options)
-        commit('credit', build_authorization_request(money, payment_method, options), :ok, options)
+        commit('credit', build_authorization_request(money, payment_method, options), :ok, 'SENT_FOR_REFUND', options)
       end
 
       def build_request
@@ -168,13 +187,16 @@ module ActiveMerchant #:nodoc:
               if options[:hcg_additional_data]
                 add_hcg_additional_data(xml, options)
               end
+              if options[:instalments]
+                add_instalments_data(xml, options)
+              end
             end
           end
         end
       end
 
       def order_tag_attributes(options)
-        { 'orderCode' => options[:order_id], 'installationId' => options[:inst_id] || @options[:inst_id] }.reject{|_,v| !v}
+        { 'orderCode' => options[:order_id], 'installationId' => options[:inst_id] || @options[:inst_id] }.reject { |_, v| !v }
       end
 
       def build_capture_request(money, authorization, options)
@@ -211,7 +233,7 @@ module ActiveMerchant #:nodoc:
         }
 
         if options[:debit_credit_indicator]
-          amount_hash.merge!('debitCreditIndicator' => options[:debit_credit_indicator])
+          amount_hash['debitCreditIndicator'] = options[:debit_credit_indicator]
         end
 
         xml.tag! 'amount', amount_hash
@@ -236,18 +258,65 @@ module ActiveMerchant #:nodoc:
                 xml.tag! 'date', 'month' => format(payment_method.month, :two_digits), 'year' => format(payment_method.year, :four_digits)
               end
 
-              xml.tag! 'cardHolderName', payment_method.name
+              xml.tag! 'cardHolderName', options[:execute_threed] ? '3D' : payment_method.name
               xml.tag! 'cvc', payment_method.verification_value
 
               add_address(xml, (options[:billing_address] || options[:address]))
             end
+            add_stored_credential_options(xml, options)
             if options[:ip] && options[:session_id]
               xml.tag! 'session', 'shopperIPAddress' => options[:ip], 'id' => options[:session_id]
             else
               xml.tag! 'session', 'shopperIPAddress' => options[:ip] if options[:ip]
               xml.tag! 'session', 'id' => options[:session_id] if options[:session_id]
             end
+
+            if three_d_secure = options[:three_d_secure]
+              xml.tag! 'info3DSecure' do
+                xml.tag! 'threeDSVersion', three_d_secure[:version]
+                xid_tag = three_d_secure[:version] =~ /^2/ ? 'dsTransactionId' : 'xid'
+                xml.tag! xid_tag, three_d_secure[:xid]
+                xml.tag! 'cavv', three_d_secure[:cavv]
+                xml.tag! 'eci', three_d_secure[:eci]
+              end
+            end
           end
+        end
+      end
+
+      def add_stored_credential_options(xml, options={})
+        if options[:stored_credential]
+          add_stored_credential_using_normalized_fields(xml, options)
+        else
+          add_stored_credential_using_gateway_specific_fields(xml, options)
+        end
+      end
+
+      def add_stored_credential_using_normalized_fields(xml, options)
+        if options[:stored_credential][:initial_transaction]
+          xml.tag! 'storedCredentials', 'usage' => 'FIRST'
+        else
+          reason = case options[:stored_credential][:reason_type]
+                   when 'installment' then 'INSTALMENT'
+                   when 'recurring' then 'RECURRING'
+                   when 'unscheduled' then 'UNSCHEDULED'
+                   end
+
+          xml.tag! 'storedCredentials', 'usage' => 'USED', 'merchantInitiatedReason' => reason do
+            xml.tag! 'schemeTransactionIdentifier', options[:stored_credential][:network_transaction_id] if options[:stored_credential][:network_transaction_id]
+          end
+        end
+      end
+
+      def add_stored_credential_using_gateway_specific_fields(xml, options)
+        return unless options[:stored_credential_usage]
+
+        if options[:stored_credential_initiated_reason]
+          xml.tag! 'storedCredentials', 'usage' => options[:stored_credential_usage], 'merchantInitiatedReason' => options[:stored_credential_initiated_reason] do
+            xml.tag! 'schemeTransactionIdentifier', options[:stored_credential_transaction_id] if options[:stored_credential_transaction_id]
+          end
+        else
+          xml.tag! 'storedCredentials', 'usage' => options[:stored_credential_usage]
         end
       end
 
@@ -292,6 +361,13 @@ module ActiveMerchant #:nodoc:
         end
       end
 
+      def add_instalments_data(xml, options)
+        xml.tag! 'thirdPartyData' do
+          xml.tag! 'instalments', options[:instalments]
+          xml.tag! 'cpf', options[:cpf] if options[:cpf]
+        end
+      end
+
       def address_with_defaults(address)
         address ||= {}
         address.delete_if { |_, v| v.blank? }
@@ -318,7 +394,7 @@ module ActiveMerchant #:nodoc:
         end
         if node.has_elements?
           raw[node.name.underscore.to_sym] = true unless node.name.blank?
-          node.elements.each{|e| parse_element(raw, e) }
+          node.elements.each { |e| parse_element(raw, e) }
         else
           raw[node.name.underscore.to_sym] = node.text unless node.text.nil?
         end
@@ -331,7 +407,7 @@ module ActiveMerchant #:nodoc:
           'Authorization' => encoded_credentials
         }
         if options[:cookie]
-          headers.merge!('Set-Cookie' => options[:cookie]) if options[:cookie]
+          headers['Cookie'] = options[:cookie] if options[:cookie]
         end
         headers
       end
@@ -351,8 +427,10 @@ module ActiveMerchant #:nodoc:
           raw,
           :authorization => authorization_from(raw),
           :error_code => error_code_from(success, raw),
-          :test => test?)
-
+          :test => test?,
+          :avs_result => AVSResult.new(code: AVS_CODE_MAP[raw[:avs_result_code_description]]),
+          :cvv_result => CVVResult.new(CVC_CODE_MAP[raw[:cvc_result_code_description]])
+        )
       rescue ActiveMerchant::ResponseError => e
         if e.response.code.to_s == '401'
           return Response.new(false, 'Invalid credentials', {}, :test => test?)
@@ -370,7 +448,7 @@ module ActiveMerchant #:nodoc:
       def handle_response(response)
         case response.code.to_i
         when 200...300
-          @cookie = response.response['Set-Cookie']
+          @cookie = response['Set-Cookie']
           response.body
         else
           raise ResponseError.new(response)
@@ -400,12 +478,12 @@ module ActiveMerchant #:nodoc:
 
       def required_status_message(raw, success_criteria)
         if(!success_criteria.include?(raw[:last_event]))
-          "A transaction status of #{success_criteria.collect{|c| "'#{c}'"}.join(" or ")} is required."
+          "A transaction status of #{success_criteria.collect { |c| "'#{c}'" }.join(" or ")} is required."
         end
       end
 
       def authorization_from(raw)
-        pair = raw.detect{|k,v| k.to_s =~ /_order_code$/}
+        pair = raw.detect { |k, v| k.to_s =~ /_order_code$/ }
         (pair ? pair.last : nil)
       end
 

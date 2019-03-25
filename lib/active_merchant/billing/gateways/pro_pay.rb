@@ -234,7 +234,7 @@ module ActiveMerchant #:nodoc:
           xml.aptNum address[:address2]
           xml.city address[:city]
           xml.state address[:state]
-          xml.zip address[:zip]
+          xml.zip address[:zip].to_s.delete('-')
         end
       end
 
@@ -317,8 +317,8 @@ module ActiveMerchant #:nodoc:
 
     def underscore(camel_cased_word)
       camel_cased_word.to_s.gsub(/::/, '/').
-        gsub(/([A-Z]+)([A-Z][a-z])/,'\1_\2').
-        gsub(/([a-z\d])([A-Z])/,'\1_\2').
+        gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').
+        gsub(/([a-z\d])([A-Z])/, '\1_\2').
         tr('-', '_').
         downcase
     end

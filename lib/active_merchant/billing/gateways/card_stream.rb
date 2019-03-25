@@ -8,7 +8,7 @@ module ActiveMerchant #:nodoc:
       self.money_format = :cents
       self.default_currency = 'GBP'
       self.supported_countries = ['GB', 'US', 'CH', 'SE', 'SG', 'NO', 'JP', 'IS', 'HK', 'NL', 'CZ', 'CA', 'AU']
-      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :discover, :jcb, :maestro, :solo, :switch]
+      self.supported_cardtypes = [:visa, :master, :american_express, :diners_club, :discover, :jcb, :maestro]
       self.homepage_url = 'http://www.cardstream.com/'
       self.display_name = 'CardStream'
 
@@ -141,7 +141,7 @@ module ActiveMerchant #:nodoc:
       def initialize(options = {})
         requires!(options, :login, :shared_secret)
         @threeds_required = false
-        if (options[:threeDSRequired])
+        if options[:threeDSRequired]
           ActiveMerchant.deprecated(THREEDSECURE_REQUIRED_DEPRECATION_MESSAGE)
           @threeds_required = options[:threeDSRequired]
         end
@@ -272,22 +272,13 @@ module ActiveMerchant #:nodoc:
       def add_credit_card(post, credit_card)
         add_pair(post, :customerName, credit_card.name, :required => true)
         add_pair(post, :cardNumber, credit_card.number, :required => true)
-
         add_pair(post, :cardExpiryMonth, format(credit_card.month, :two_digits), :required => true)
         add_pair(post, :cardExpiryYear, format(credit_card.year, :two_digits), :required => true)
-
-        if requires_start_date_or_issue_number?(credit_card)
-          add_pair(post, :cardStartMonth, format(credit_card.start_month, :two_digits))
-          add_pair(post, :cardStartYear, format(credit_card.start_year, :two_digits))
-
-          add_pair(post, :cardIssueNumber, credit_card.issue_number)
-        end
-
         add_pair(post, :cardCVV, credit_card.verification_value)
       end
 
       def add_threeds_required(post, options)
-        add_pair(post, :threeDSRequired, (options[:threeds_required] || @threeds_required) ? 'Y' : 'N')
+        add_pair(post, :threeDSRequired, options[:threeds_required] || @threeds_required ? 'Y' : 'N')
       end
 
       def add_remote_address(post, options={})
@@ -327,13 +318,14 @@ module ActiveMerchant #:nodoc:
 
         response = parse(ssl_post(self.live_url, post_data(action, parameters)))
 
-        Response.new(response[:responseCode] == '0',
-                     response[:responseCode] == '0' ? 'APPROVED' : response[:responseMessage],
-                     response,
-                     :test => test?,
-                     :authorization => response[:xref],
-                     :cvv_result => CVV_CODE[response[:avscv2ResponseCode].to_s[0, 1]],
-                     :avs_result => avs_from(response)
+        Response.new(
+          response[:responseCode] == '0',
+          response[:responseCode] == '0' ? 'APPROVED' : response[:responseMessage],
+          response,
+          :test => test?,
+          :authorization => response[:xref],
+          :cvv_result => CVV_CODE[response[:avscv2ResponseCode].to_s[0, 1]],
+          :avs_result => avs_from(response)
         )
       end
 
@@ -342,13 +334,13 @@ module ActiveMerchant #:nodoc:
         street_match = AVS_STREET_MATCH[response[:avscv2ResponseCode].to_s[2, 1]]
 
         code = if postal_match == 'Y' && street_match == 'Y'
-          'M'
-        elsif postal_match == 'Y'
-          'P'
-        elsif street_match == 'Y'
-          'A'
-        else
-          'I'
+                 'M'
+               elsif postal_match == 'Y'
+                 'P'
+               elsif street_match == 'Y'
+                 'A'
+               else
+                 'I'
         end
 
         AVSResult.new({
@@ -357,7 +349,6 @@ module ActiveMerchant #:nodoc:
           :street_match => street_match
         })
       end
-
 
       def currency_code(currency)
         CURRENCY_CODES[currency]

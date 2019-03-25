@@ -171,7 +171,7 @@ module ActiveMerchant #:nodoc:
         success = false
 
         begin
-          raw_response = ssl_post(live_url, post.to_json, {'Content-Type' => 'application/json'} )
+          raw_response = ssl_post(live_url, post.to_json, {'Content-Type' => 'application/json'})
           response = parse(raw_response)
           success = (response['RESPONSE_CODE'] == '00')
         rescue ResponseError => e
@@ -200,7 +200,7 @@ module ActiveMerchant #:nodoc:
 
       def json_error(raw_response)
         {
-          error_message: 'Invalid response received from the Payhub API.  Please contact wecare@payhub.com if you continue to receive this message.' +
+          error_message: 'Invalid response received from the Payhub API.  Please contact wecare@payhub.com if you continue to receive this message.' \
             "  (The raw response returned by the API was #{raw_response.inspect})"
         }
       end

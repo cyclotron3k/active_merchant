@@ -61,7 +61,7 @@ module ActiveMerchant
     end
 
     def wiredump_device=(device)
-      raise ArgumentError, "can't wiredump to frozen #{device.class}" if device && device.frozen?
+      raise ArgumentError, "can't wiredump to frozen #{device.class}" if device&.frozen?
       @wiredump_device = device
     end
 
@@ -117,7 +117,6 @@ module ActiveMerchant
           result
         end
       end
-
     ensure
       info 'connection_request_total_time=%.4fs' % [Process.clock_gettime(Process::CLOCK_MONOTONIC) - request_start], tag
       http.finish if http.started?
@@ -162,7 +161,6 @@ module ActiveMerchant
       else
         http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       end
-
     end
 
     def configure_cert(http)
@@ -174,19 +172,6 @@ module ActiveMerchant
         http.key = OpenSSL::PKey::RSA.new(pem, pem_password)
       else
         http.key = OpenSSL::PKey::RSA.new(pem)
-      end
-    end
-
-    def handle_response(response)
-      if @ignore_http_status then
-        return response.body
-      else
-        case response.code.to_i
-        when 200...300
-          response.body
-        else
-          raise ResponseError.new(response)
-        end
       end
     end
 
@@ -204,7 +189,7 @@ module ActiveMerchant
 
     def log(level, message, tag)
       message = "[#{tag}] #{message}" if tag
-      logger.send(level, message) if logger
+      logger&.send(level, message)
     end
   end
 end

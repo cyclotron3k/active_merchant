@@ -13,7 +13,6 @@ module ActiveMerchant #:nodoc:
       self.default_currency = 'USD'
       self.supported_cardtypes = [:visa, :master, :american_express, :discover, :diners_club, :jcb]
 
-
       def initialize(options={})
         requires!(options, :user_name, :password)
         super
@@ -167,8 +166,8 @@ module ActiveMerchant #:nodoc:
         response = {}
 
         doc = Nokogiri::XML(xml)
-        doc.root.xpath('*').each do |node|
-          if (node.elements.size == 0)
+        doc.root&.xpath('*')&.each do |node|
+          if node.elements.size == 0
             response[node.name.downcase.to_sym] = node.text
           else
             node.elements.each do |childnode|
@@ -176,7 +175,7 @@ module ActiveMerchant #:nodoc:
               response[name.to_sym] = childnode.text
             end
           end
-        end unless doc.root.nil?
+        end
 
         response
       end
@@ -238,7 +237,7 @@ module ActiveMerchant #:nodoc:
         {
           :UserName => @options[:user_name],
           :Password => @options[:password]
-        }.merge(post).collect{|k,v| "#{k}=#{CGI.escape(v.to_s)}"}.join('&')
+        }.merge(post).collect { |k, v| "#{k}=#{CGI.escape(v.to_s)}" }.join('&')
       end
     end
   end
